@@ -102,10 +102,35 @@ async function init() {
 async function checkAdminStatus() {
     if (!currentUser) {
         isAdmin = false;
+        updateAdminCardVisibility();
         return;
     }
     
+    // デモモード: 管理者権限を確認
+    const useDemoMode = !window.firebaseAuth || !window.firebaseDb;
+    
+    if (useDemoMode) {
+        // デモモードでは、特定のメールアドレスまたは常に管理者として設定可能
+        // デモ用: 管理者として設定するメールアドレス（必要に応じて変更）
+        const adminEmails = ['admin@example.com', 'demo@example.com'];
+        // または、常に管理者として扱う（デモ用）
+        isAdmin = true; // デモモードでは常に管理者として扱う
+        
+        // 特定のメールアドレスのみ管理者にする場合は、以下のコメントを外す
+        // isAdmin = adminEmails.includes(currentUser.email);
+        
+        updateAdminCardVisibility();
+        return;
+    }
+    
+    // Firebaseモード
     try {
+        if (!db || !window.firebaseFunctions) {
+            isAdmin = false;
+            updateAdminCardVisibility();
+            return;
+        }
+        
         const userDocRef = window.firebaseFunctions.doc(db, 'users', currentUser.uid);
         const userDoc = await window.firebaseFunctions.getDoc(userDocRef);
         
@@ -116,14 +141,19 @@ async function checkAdminStatus() {
             isAdmin = false;
         }
         
-        // 管理者カードの表示/非表示
-        const adminCard = document.getElementById('admin-card');
-        if (adminCard) {
-            adminCard.style.display = isAdmin ? 'block' : 'none';
-        }
+        updateAdminCardVisibility();
     } catch (error) {
         console.error('管理者確認エラー:', error);
         isAdmin = false;
+        updateAdminCardVisibility();
+    }
+}
+
+// 管理者カードの表示/非表示を更新
+function updateAdminCardVisibility() {
+    const adminCard = document.getElementById('admin-card');
+    if (adminCard) {
+        adminCard.style.display = isAdmin ? 'block' : 'none';
     }
 }
 
@@ -280,6 +310,20 @@ function showSettings() {
 
 // 管理者ページを表示
 function showAdminPage() {
+    // 管理者権限を再確認
+    if (!currentUser) {
+        alert('ログインが必要です');
+        showAuth();
+        return;
+    }
+    
+    // デモモードでは管理者権限を再確認
+    const useDemoMode = !window.firebaseAuth || !window.firebaseDb;
+    if (useDemoMode) {
+        // デモモードでは常に管理者として扱う（または特定のメールアドレスをチェック）
+        isAdmin = true;
+    }
+    
     if (!isAdmin) {
         alert('管理者権限が必要です');
         return;
