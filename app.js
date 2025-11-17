@@ -167,30 +167,53 @@ function showQuestionForm() {
 
 // チャット画面を表示（質問フォームから）
 function showChat(questionId) {
+    console.log('showChat called with questionId:', questionId);
+    
+    // すべての画面を非表示
     document.getElementById('auth-container').style.display = 'none';
     document.getElementById('top-page').style.display = 'none';
     document.getElementById('question-form').style.display = 'none';
-    document.getElementById('chat-container').style.display = 'flex';
     document.getElementById('settings-page').style.display = 'none';
     document.getElementById('admin-page').style.display = 'none';
+    
+    // チャット画面を表示
+    const chatContainer = document.getElementById('chat-container');
+    if (chatContainer) {
+        chatContainer.style.display = 'flex';
+    } else {
+        console.error('chat-container要素が見つかりません');
+        return;
+    }
     
     currentQuestionId = questionId;
     
     if (questionId) {
-        loadChatMessages(questionId);
         const question = window.demoAuth.getQuestionById(questionId);
+        console.log('Question found:', question);
+        
         if (question) {
-            document.getElementById('chat-title').textContent = question.title;
+            const chatTitle = document.getElementById('chat-title');
+            if (chatTitle) {
+                chatTitle.textContent = question.title;
+            }
+            
             // 管理者に通知されている場合はステータスを表示
-            if (question.status === 'admin-notified' || question.status === 'pending') {
-                document.getElementById('chat-status').style.display = 'block';
-            } else {
-                document.getElementById('chat-status').style.display = 'none';
+            const chatStatus = document.getElementById('chat-status');
+            if (chatStatus) {
+                if (question.status === 'admin-notified' || question.status === 'pending') {
+                    chatStatus.style.display = 'block';
+                } else {
+                    chatStatus.style.display = 'none';
+                }
             }
         }
+        
+        // メッセージを読み込む
+        loadChatMessages(questionId);
     } else {
         loadMessages();
     }
+    
     updateUserDisplay();
 }
 
@@ -688,42 +711,24 @@ async function submitQuestion() {
             displayName: currentUser.displayName || currentUser.email
         });
 
-        // AI判定を実行
-        const aiResult = await checkAIResponse(question);
+        // 管理者に通知（AI応答機能は省略）
+        window.demoAuth.updateQuestion(question.id, {
+            status: 'admin-notified',
+            adminNotified: true
+        });
         
-        if (aiResult.canAnswer) {
-            // AIで回答可能
-            const aiResponse = await generateAIResponse(question);
-            window.demoAuth.updateQuestion(question.id, {
-                status: 'ai-answered',
-                aiResponse: aiResponse
-            });
-            
-            // AI応答をメッセージとして追加
-            window.demoAuth.addQuestionMessage(question.id, {
-                text: aiResponse,
-                userId: 'ai',
-                userEmail: 'ai@system',
-                displayName: 'AIアシスタント',
-                isAI: true
-            });
-        } else {
-            // 管理者に通知が必要
-            window.demoAuth.updateQuestion(question.id, {
-                status: 'admin-notified',
-                adminNotified: true
-            });
-            
-            // 管理者に通知（デモモードではローカルストレージに保存）
-            notifyAdmin(question);
-        }
+        // 管理者に通知（デモモードではローカルストレージに保存）
+        notifyAdmin(question);
 
         // チャット画面に遷移
-        showChat(question.id);
+        console.log('質問を作成しました。ID:', question.id);
+        setTimeout(() => {
+            showChat(question.id);
+        }, 100);
         
     } catch (error) {
         console.error('質問送信エラー:', error);
-        alert('質問の送信に失敗しました');
+        alert('質問の送信に失敗しました: ' + error.message);
     }
 }
 
@@ -805,15 +810,26 @@ function notifyAdmin(question) {
 
 // チャットメッセージを読み込む（質問用）
 function loadChatMessages(questionId) {
-    if (!questionId) return;
+    if (!questionId) {
+        console.log('loadChatMessages: questionId is null');
+        return;
+    }
+    
+    console.log('loadChatMessages called with questionId:', questionId);
     
     const useDemoMode = !auth || !db || !window.firebaseAuth;
     
     if (useDemoMode) {
         const messages = window.demoAuth.getQuestionMessages(questionId);
         const question = window.demoAuth.getQuestionById(questionId);
+        console.log('Messages:', messages);
+        console.log('Question:', question);
+        
         const messagesContainer = document.getElementById('messages-container');
-        if (!messagesContainer) return;
+        if (!messagesContainer) {
+            console.error('messages-container要素が見つかりません');
+            return;
+        }
         
         messagesContainer.innerHTML = '';
         
