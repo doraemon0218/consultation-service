@@ -705,10 +705,13 @@ function cancelQuestionImageUpload() {
 // 質問を送信
 async function submitQuestion() {
     console.log('submitQuestion called');
+    console.log('currentUser:', currentUser);
+    console.log('window.demoAuth:', window.demoAuth);
     
     if (!currentUser) {
         console.error('currentUser is null');
-        alert('ログインが必要です');
+        alert('ログインが必要です。スキップボタンでログインしてください。');
+        showAuth();
         return;
     }
 
