@@ -1551,6 +1551,7 @@ function switchAdminTab(tabName) {
         document.getElementById('admin-tab-education').classList.add('active');
         loadEducationStats();
         updateChapterSelect();
+        filterAllQuestions(); // すべての質問を表示
     }
 }
 
