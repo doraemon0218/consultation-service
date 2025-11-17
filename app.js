@@ -10,8 +10,13 @@ let filteredMessages = [];
 
 // Firebase初期化を待つ
 function waitForFirebase() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+        const maxAttempts = 50; // 5秒待機
+        
         const checkFirebase = setInterval(() => {
+            attempts++;
+            
             if (window.firebaseAuth && window.firebaseDb && window.firebaseStorage && window.googleProvider) {
                 auth = window.firebaseAuth;
                 db = window.firebaseDb;
@@ -19,6 +24,10 @@ function waitForFirebase() {
                 googleProvider = window.googleProvider;
                 clearInterval(checkFirebase);
                 resolve();
+            } else if (attempts >= maxAttempts) {
+                clearInterval(checkFirebase);
+                console.error('Firebase初期化タイムアウト');
+                reject(new Error('Firebaseの初期化に失敗しました。設定を確認してください。'));
             }
         }, 100);
     });
@@ -26,25 +35,43 @@ function waitForFirebase() {
 
 // 初期化
 async function init() {
-    await waitForFirebase();
-    
-    // 認証状態の監視
-    window.firebaseFunctions.onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            currentUser = user;
-            await checkAdminStatus();
-            showTopPage();
-            await loadUserSettings();
-            updateUserDisplay();
-        } else {
-            currentUser = null;
-            isAdmin = false;
-            showAuth();
-            if (unsubscribeMessages) {
-                unsubscribeMessages();
-            }
+    try {
+        await waitForFirebase();
+        
+        // Firebase設定の検証
+        if (!auth || !db) {
+            console.error('Firebaseが正しく初期化されていません');
+            showError('Firebaseの設定に問題があります。設定を確認してください。');
+            return;
         }
-    });
+        
+        // 認証状態の監視
+        window.firebaseFunctions.onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                await checkAdminStatus();
+                showTopPage();
+                await loadUserSettings();
+                updateUserDisplay();
+            } else {
+                currentUser = null;
+                isAdmin = false;
+                showAuth();
+                if (unsubscribeMessages) {
+                    unsubscribeMessages();
+                }
+            }
+        }, (error) => {
+            console.error('認証状態監視エラー:', error);
+        });
+    } catch (error) {
+        console.error('初期化エラー:', error);
+        const errorDiv = document.getElementById('auth-error');
+        if (errorDiv) {
+            errorDiv.textContent = 'Firebaseの初期化に失敗しました。設定を確認してください。';
+            errorDiv.classList.add('show');
+        }
+    }
 }
 
 // 管理者かどうかを確認
@@ -175,29 +202,56 @@ async function handleSignup() {
         return;
     }
 
+    // Firebase設定の確認
+    if (!auth || !db) {
+        showError('Firebaseが正しく設定されていません。設定を確認してください。');
+        console.error('Firebase設定エラー: authまたはdbが初期化されていません');
+        return;
+    }
+
     try {
         clearError();
         const userCredential = await window.firebaseFunctions.createUserWithEmailAndPassword(auth, email, password);
         
-        // ユーザー名をFirestoreに保存（必要に応じて）
-        // ここでは簡略化のため、メールアドレスを使用
+        // ユーザー名をFirestoreに保存
+        if (userCredential.user) {
+            const userDocRef = window.firebaseFunctions.doc(db, 'users', userCredential.user.uid);
+            await window.firebaseFunctions.setDoc(userDocRef, {
+                username: username,
+                email: email,
+                createdAt: window.firebaseFunctions.serverTimestamp()
+            }, { merge: true });
+        }
         
         // フォームをクリア
         document.getElementById('signup-email').value = '';
         document.getElementById('signup-password').value = '';
         document.getElementById('signup-username').value = '';
     } catch (error) {
+        console.error('サインアップエラー:', error);
         let errorMessage = 'エラーが発生しました';
-        switch (error.code) {
-            case 'auth/email-already-in-use':
-                errorMessage = 'このメールアドレスは既に使用されています';
-                break;
-            case 'auth/invalid-email':
-                errorMessage = 'メールアドレスの形式が正しくありません';
-                break;
-            case 'auth/weak-password':
-                errorMessage = 'パスワードが弱すぎます';
-                break;
+        if (error.code) {
+            switch (error.code) {
+                case 'auth/email-already-in-use':
+                    errorMessage = 'このメールアドレスは既に使用されています';
+                    break;
+                case 'auth/invalid-email':
+                    errorMessage = 'メールアドレスの形式が正しくありません';
+                    break;
+                case 'auth/weak-password':
+                    errorMessage = 'パスワードが弱すぎます';
+                    break;
+                case 'auth/operation-not-allowed':
+                    errorMessage = 'この認証方法は有効になっていません。Firebase Consoleで設定を確認してください。';
+                    break;
+                case 'auth/network-request-failed':
+                    errorMessage = 'ネットワークエラーが発生しました。接続を確認してください。';
+                    break;
+                default:
+                    errorMessage = `エラー: ${error.message || error.code || '不明なエラー'}`;
+            }
+        } else {
+            errorMessage = `エラー: ${error.message || '不明なエラー'}`;
         }
         showError(errorMessage);
     }
@@ -213,6 +267,13 @@ async function handleLogin() {
         return;
     }
 
+    // Firebase設定の確認
+    if (!auth || !db) {
+        showError('Firebaseが正しく設定されていません。設定を確認してください。');
+        console.error('Firebase設定エラー: authまたはdbが初期化されていません');
+        return;
+    }
+
     try {
         clearError();
         await window.firebaseFunctions.signInWithEmailAndPassword(auth, email, password);
@@ -221,17 +282,33 @@ async function handleLogin() {
         document.getElementById('login-email').value = '';
         document.getElementById('login-password').value = '';
     } catch (error) {
+        console.error('ログインエラー:', error);
         let errorMessage = 'ログインに失敗しました';
-        switch (error.code) {
-            case 'auth/user-not-found':
-                errorMessage = 'ユーザーが見つかりません';
-                break;
-            case 'auth/wrong-password':
-                errorMessage = 'パスワードが正しくありません';
-                break;
-            case 'auth/invalid-email':
-                errorMessage = 'メールアドレスの形式が正しくありません';
-                break;
+        if (error.code) {
+            switch (error.code) {
+                case 'auth/user-not-found':
+                    errorMessage = 'ユーザーが見つかりません';
+                    break;
+                case 'auth/wrong-password':
+                    errorMessage = 'パスワードが正しくありません';
+                    break;
+                case 'auth/invalid-email':
+                    errorMessage = 'メールアドレスの形式が正しくありません';
+                    break;
+                case 'auth/user-disabled':
+                    errorMessage = 'このアカウントは無効化されています';
+                    break;
+                case 'auth/network-request-failed':
+                    errorMessage = 'ネットワークエラーが発生しました。接続を確認してください。';
+                    break;
+                case 'auth/too-many-requests':
+                    errorMessage = 'ログイン試行回数が多すぎます。しばらく待ってから再試行してください。';
+                    break;
+                default:
+                    errorMessage = `エラー: ${error.message || error.code || '不明なエラー'}`;
+            }
+        } else {
+            errorMessage = `エラー: ${error.message || '不明なエラー'}`;
         }
         showError(errorMessage);
     }

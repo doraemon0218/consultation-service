@@ -22,6 +22,13 @@
             appId: "YOUR_APP_ID"
         };
 
+        // Firebase設定の検証
+        if (firebaseConfig.apiKey === "YOUR_API_KEY" || 
+            firebaseConfig.projectId === "YOUR_PROJECT_ID") {
+            console.error('⚠️ Firebase設定が正しく設定されていません！');
+            console.error('index.htmlのfirebaseConfigを実際のFirebase設定値に置き換えてください。');
+        }
+
         // Firebase初期化
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
