@@ -221,14 +221,18 @@ function showChat(questionId) {
                 // 質問ヘッダーを表示（タイトルと画像）
                 displayQuestionHeader(question);
                 
-                // 解決済みでない場合は「解決しました！」ボタンを表示
+                // 「解決しました！」ボタンを表示（解決済みでない場合）
                 const resolveButtonContainer = document.getElementById('resolve-button-container');
                 if (resolveButtonContainer) {
                     if (question.status !== 'resolved') {
                         resolveButtonContainer.style.display = 'block';
+                        console.log('解決ボタンを表示');
                     } else {
                         resolveButtonContainer.style.display = 'none';
+                        console.log('解決済みのため解決ボタンを非表示');
                     }
+                } else {
+                    console.error('resolve-button-container要素が見つかりません');
                 }
                 
                 // 管理者に通知されている場合はステータスを表示
@@ -1107,24 +1111,32 @@ function displayQuestionHeader(question) {
 
 // 質問を解決済みにする
 function resolveQuestion() {
+    console.log('resolveQuestion called');
+    
     if (!currentQuestionId) {
+        console.error('currentQuestionId is null');
         alert('質問が見つかりません');
         return;
     }
     
     if (!window.demoAuth) {
+        console.error('window.demoAuth is not available');
         alert('システムエラーが発生しました');
         return;
     }
     
     const question = window.demoAuth.getQuestionById(currentQuestionId);
     if (!question) {
+        console.error('Question not found:', currentQuestionId);
         alert('質問が見つかりません');
         return;
     }
     
+    console.log('Resolving question:', question.id, question.title);
+    
     // 確認ダイアログ
     if (!confirm('この質問を解決済みにしますか？\nチャットルームは閉じられますが、履歴から確認できます。')) {
+        console.log('User cancelled resolution');
         return;
     }
     
@@ -1134,11 +1146,13 @@ function resolveQuestion() {
             status: 'resolved',
             resolvedAt: new Date()
         });
+        console.log('Question status updated to resolved');
         
         // トップページに戻る
         showTopPage();
         
-        alert('質問を解決済みにしました。履歴から確認できます。');
+        // アラートは表示せず、スムーズに遷移
+        console.log('Question resolved, returned to top page');
         
     } catch (error) {
         console.error('質問解決エラー:', error);
@@ -1169,8 +1183,20 @@ function getCategoryName(categoryValue) {
 
 // 画像選択処理
 function handleImageSelect(event) {
+    console.log('handleImageSelect called');
     const file = event.target.files[0];
-    if (!file) return;
+    if (!file) {
+        console.log('No file selected');
+        return;
+    }
+
+    console.log('File selected:', file.name, file.size, file.type);
+
+    // ファイルタイプチェック（画像のみ）
+    if (!file.type.startsWith('image/')) {
+        alert('画像ファイルを選択してください');
+        return;
+    }
 
     // ファイルサイズチェック（5MB以下）
     if (file.size > 5 * 1024 * 1024) {
@@ -1183,8 +1209,17 @@ function handleImageSelect(event) {
     reader.onload = (e) => {
         const previewImg = document.getElementById('preview-img');
         const previewDiv = document.getElementById('image-preview');
-        previewImg.src = e.target.result;
-        previewDiv.style.display = 'block';
+        if (previewImg && previewDiv) {
+            previewImg.src = e.target.result;
+            previewDiv.style.display = 'block';
+            console.log('Image preview displayed');
+        } else {
+            console.error('Preview elements not found');
+        }
+    };
+    reader.onerror = (error) => {
+        console.error('FileReader error:', error);
+        alert('画像の読み込みに失敗しました');
     };
     reader.readAsDataURL(file);
 }
@@ -1198,14 +1233,24 @@ function cancelImageUpload() {
 
 // メッセージを送信
 async function sendMessage() {
-    if (!currentUser) return;
+    console.log('sendMessage called');
+    if (!currentUser) {
+        console.error('currentUser is null');
+        return;
+    }
 
     const messageInput = document.getElementById('message-input');
     const messageText = messageInput.value.trim();
     let imageUrl = null;
 
+    console.log('Message text:', messageText);
+    console.log('Selected image file:', selectedImageFile);
+
     // テキストも画像もない場合は送信しない
-    if (!messageText && !selectedImageFile) return;
+    if (!messageText && !selectedImageFile) {
+        console.log('No message text or image');
+        return;
+    }
 
     // デモモードかどうかを確認
     const useDemoMode = !auth || !db || !window.firebaseAuth;
@@ -1215,15 +1260,25 @@ async function sendMessage() {
         try {
             // 画像がある場合はDataURLとして保存
             if (selectedImageFile) {
+                console.log('Processing image...');
                 const reader = new FileReader();
-                imageUrl = await new Promise((resolve) => {
-                    reader.onload = (e) => resolve(e.target.result);
+                imageUrl = await new Promise((resolve, reject) => {
+                    reader.onload = (e) => {
+                        console.log('Image loaded successfully');
+                        resolve(e.target.result);
+                    };
+                    reader.onerror = (error) => {
+                        console.error('Image read error:', error);
+                        reject(error);
+                    };
                     reader.readAsDataURL(selectedImageFile);
                 });
+                console.log('Image URL created, length:', imageUrl ? imageUrl.length : 0);
             }
 
             // 質問がある場合は質問のメッセージとして保存
             if (currentQuestionId) {
+                console.log('Adding message to question:', currentQuestionId);
                 window.demoAuth.addQuestionMessage(currentQuestionId, {
                     text: messageText || '',
                     imageUrl: imageUrl || null,
@@ -1231,6 +1286,7 @@ async function sendMessage() {
                     userEmail: currentUser.email,
                     displayName: currentUser.displayName || currentUser.email
                 });
+                console.log('Message added successfully');
                 
                 // フォームをクリア
                 messageInput.value = '';
