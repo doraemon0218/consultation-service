@@ -1482,14 +1482,682 @@ function loadMessages() {
 
 // 管理者データを読み込む
 async function loadAdminData() {
+    await loadAllQuestions();
     await loadAllMessages();
     await loadTags();
     renderAdminMessages();
     updateTagFilter();
+    loadEducationStats();
+}
+
+// すべての質問を読み込む（教育資材用）
+async function loadAllQuestions() {
+    if (!window.demoAuth) {
+        console.log('demoAuth not available, skipping questions load');
+        return;
+    }
+    
+    try {
+        const questions = window.demoAuth.getQuestions();
+        // 質問をカテゴリと作成日時でソート
+        questions.sort((a, b) => {
+            const categoryOrder = {
+                'soil-preparation': 1,
+                'planting': 2,
+                'watering': 3,
+                'fertilization': 4,
+                'temperature': 5,
+                'lighting': 6,
+                'pollination': 7,
+                'pruning': 8,
+                'pest-control': 9,
+                'harvesting': 10,
+                'post-harvest': 11,
+                'variety-selection': 12,
+                'facility-management': 13,
+                'other': 14
+            };
+            const aOrder = categoryOrder[a.category] || 99;
+            const bOrder = categoryOrder[b.category] || 99;
+            if (aOrder !== bOrder) return aOrder - bOrder;
+            
+            const aTime = new Date(a.createdAt).getTime();
+            const bTime = new Date(b.createdAt).getTime();
+            return aTime - bTime;
+        });
+        
+        window.allQuestions = questions;
+    } catch (error) {
+        console.error('質問読み込みエラー:', error);
+        window.allQuestions = [];
+    }
+}
+
+// タブ切り替え
+function switchAdminTab(tabName) {
+    // タブボタンのアクティブ状態を更新
+    document.querySelectorAll('.admin-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    
+    // タブコンテンツの表示/非表示
+    document.getElementById('admin-tab-management').classList.remove('active');
+    document.getElementById('admin-tab-education').classList.remove('active');
+    
+    if (tabName === 'management') {
+        document.getElementById('admin-tab-management').classList.add('active');
+    } else if (tabName === 'education') {
+        document.getElementById('admin-tab-education').classList.add('active');
+        loadEducationStats();
+        updateChapterSelect();
+    }
+}
+
+// 教育資材統計を読み込む
+function loadEducationStats() {
+    if (!window.demoAuth) return;
+    
+    const questions = window.demoAuth.getQuestions() || [];
+    const stats = {
+        total: questions.length,
+        resolved: questions.filter(q => q.status === 'resolved').length,
+        pending: questions.filter(q => q.status === 'pending' || q.status === 'admin-notified').length,
+        byCategory: {},
+        byUser: {},
+        avgMessagesPerQuestion: 0,
+        questionsWithImages: 0
+    };
+    
+    let totalMessages = 0;
+    
+    questions.forEach(q => {
+        const categoryName = getCategoryName(q.category);
+        if (!stats.byCategory[categoryName]) {
+            stats.byCategory[categoryName] = 0;
+        }
+        stats.byCategory[categoryName]++;
+        
+        // ユーザー別統計
+        const userEmail = q.userEmail || 'unknown';
+        if (!stats.byUser[userEmail]) {
+            stats.byUser[userEmail] = 0;
+        }
+        stats.byUser[userEmail]++;
+        
+        // 画像付き質問
+        if (q.imageUrl) {
+            stats.questionsWithImages++;
+        }
+        
+        // メッセージ数
+        const messages = window.demoAuth.getQuestionMessages(q.id) || [];
+        totalMessages += messages.length;
+    });
+    
+    stats.avgMessagesPerQuestion = stats.total > 0 ? (totalMessages / stats.total).toFixed(1) : 0;
+    
+    const statsContainer = document.getElementById('education-stats');
+    if (!statsContainer) return;
+    
+    let html = `
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">${stats.total}</div>
+                <div class="stat-label">総質問数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${stats.resolved}</div>
+                <div class="stat-label">解決済み</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${stats.pending}</div>
+                <div class="stat-label">対応中</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${stats.avgMessagesPerQuestion}</div>
+                <div class="stat-label">平均メッセージ数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${stats.questionsWithImages}</div>
+                <div class="stat-label">画像付き質問</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${Object.keys(stats.byUser).length}</div>
+                <div class="stat-label">質問したユーザー数</div>
+            </div>
+        </div>
+        <div class="category-stats">
+            <h4>カテゴリ別質問数</h4>
+            <div class="category-list">
+    `;
+    
+    Object.entries(stats.byCategory)
+        .sort((a, b) => b[1] - a[1])
+        .forEach(([category, count]) => {
+            const percentage = ((count / stats.total) * 100).toFixed(1);
+            html += `
+                <div class="category-item">
+                    <span class="category-name">${category}</span>
+                    <div class="category-details">
+                        <span class="category-count">${count}件</span>
+                        <span class="category-percentage">${percentage}%</span>
+                    </div>
+                </div>
+            `;
+        });
+    
+    html += `
+            </div>
+        </div>
+    `;
+    
+    statsContainer.innerHTML = html;
+    
+    // 質問の概要を表示
+    loadQuestionOverview(questions);
+}
+
+// 質問の概要を表示（特徴を大まかに捉える）
+function loadQuestionOverview(questions) {
+    const overviewContainer = document.getElementById('question-overview');
+    if (!overviewContainer) return;
+    
+    // よくある質問パターンを分析
+    const commonKeywords = {};
+    const commonPatterns = [];
+    
+    questions.forEach(q => {
+        const text = q.text.toLowerCase();
+        // キーワード抽出（簡易版）
+        const keywords = ['温度', '水', '肥料', '病気', '枯れる', '実', '花', '葉', '根', '土'];
+        keywords.forEach(keyword => {
+            if (text.includes(keyword)) {
+                if (!commonKeywords[keyword]) {
+                    commonKeywords[keyword] = 0;
+                }
+                commonKeywords[keyword]++;
+            }
+        });
+    });
+    
+    // よくある質問パターン
+    const topKeywords = Object.entries(commonKeywords)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+    
+    let html = `
+        <div class="overview-section">
+            <h4>よくある質問の特徴</h4>
+            <div class="keywords-cloud">
+    `;
+    
+    topKeywords.forEach(([keyword, count]) => {
+        const size = Math.max(14, 14 + (count * 2));
+        html += `
+            <span class="keyword-tag" style="font-size: ${size}px;">
+                ${keyword} (${count}回)
+            </span>
+        `;
+    });
+    
+    html += `
+            </div>
+        </div>
+    `;
+    
+    overviewContainer.innerHTML = html;
+}
+
+// すべての質問をフィルタリングして表示
+function filterAllQuestions() {
+    if (!window.demoAuth) return;
+    
+    const questions = window.demoAuth.getQuestions() || [];
+    const categoryFilter = document.getElementById('category-filter')?.value || '';
+    const statusFilter = document.getElementById('status-filter')?.value || '';
+    const searchText = document.getElementById('question-search')?.value.toLowerCase() || '';
+    
+    let filtered = questions;
+    
+    // カテゴリフィルター
+    if (categoryFilter) {
+        filtered = filtered.filter(q => q.category === categoryFilter);
+    }
+    
+    // ステータスフィルター
+    if (statusFilter) {
+        filtered = filtered.filter(q => q.status === statusFilter);
+    }
+    
+    // テキスト検索
+    if (searchText) {
+        filtered = filtered.filter(q => 
+            q.title.toLowerCase().includes(searchText) ||
+            q.text.toLowerCase().includes(searchText)
+        );
+    }
+    
+    // 作成日時でソート（新しい順）
+    filtered.sort((a, b) => {
+        const aTime = new Date(a.createdAt).getTime();
+        const bTime = new Date(b.createdAt).getTime();
+        return bTime - aTime;
+    });
+    
+    renderAllQuestions(filtered);
+}
+
+// すべての質問を表示
+function renderAllQuestions(questions) {
+    const container = document.getElementById('all-questions-list');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    if (questions.length === 0) {
+        container.innerHTML = '<p class="no-questions">質問がありません</p>';
+        return;
+    }
+    
+    questions.forEach(question => {
+        const messages = window.demoAuth.getQuestionMessages(question.id) || [];
+        const messageCount = messages.length;
+        
+        const questionCard = document.createElement('div');
+        questionCard.className = 'question-card';
+        questionCard.onclick = () => showQuestionDetail(question.id);
+        
+        const statusBadge = question.status === 'resolved' ? 
+            '<span class="status-badge resolved">解決済み</span>' : 
+            '<span class="status-badge pending">対応中</span>';
+        
+        questionCard.innerHTML = `
+            <div class="question-card-header">
+                <div class="question-card-title">
+                    <span class="category-badge">${getCategoryName(question.category)}</span>
+                    <h4>${question.title}</h4>
+                </div>
+                ${statusBadge}
+            </div>
+            <div class="question-card-body">
+                <p class="question-preview">${question.text.substring(0, 150)}${question.text.length > 150 ? '...' : ''}</p>
+                ${question.imageUrl ? '<span class="has-image-badge">📷 画像あり</span>' : ''}
+            </div>
+            <div class="question-card-footer">
+                <div class="question-meta">
+                    <span class="question-user">👤 ${question.displayName || question.userEmail}</span>
+                    <span class="question-date">📅 ${formatDate(question.createdAt)}</span>
+                    <span class="question-messages">💬 ${messageCount}件のメッセージ</span>
+                </div>
+                <button class="view-detail-btn">詳細を見る →</button>
+            </div>
+        `;
+        
+        container.appendChild(questionCard);
+    });
+}
+
+// 質問詳細を表示
+function showQuestionDetail(questionId) {
+    if (!window.demoAuth) return;
+    
+    const question = window.demoAuth.getQuestionById(questionId);
+    if (!question) {
+        alert('質問が見つかりません');
+        return;
+    }
+    
+    const messages = window.demoAuth.getQuestionMessages(questionId) || [];
+    
+    // モーダルまたは詳細画面を表示
+    const detailModal = document.createElement('div');
+    detailModal.className = 'question-detail-modal';
+    detailModal.innerHTML = `
+        <div class="detail-modal-content">
+            <div class="detail-modal-header">
+                <h2>質問詳細</h2>
+                <button onclick="closeQuestionDetail()" class="close-modal-btn">×</button>
+            </div>
+            <div class="detail-modal-body">
+                <div class="detail-section">
+                    <h3>【${getCategoryName(question.category)}】${question.title}</h3>
+                    <div class="detail-meta">
+                        <span>👤 ${question.displayName || question.userEmail}</span>
+                        <span>📅 ${formatDate(question.createdAt)}</span>
+                        <span class="status-badge ${question.status === 'resolved' ? 'resolved' : 'pending'}">
+                            ${question.status === 'resolved' ? '解決済み' : '対応中'}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <h4>質問内容</h4>
+                    <p>${question.text}</p>
+                    ${question.imageUrl ? `<img src="${question.imageUrl}" class="detail-image" alt="質問画像">` : ''}
+                </div>
+                
+                <div class="detail-section">
+                    <h4>チャット履歴 (${messages.length}件)</h4>
+                    <div class="detail-messages">
+                        ${messages.length > 0 ? 
+                            messages.map((msg, index) => `
+                                <div class="detail-message ${msg.userId === question.userId ? 'user-message' : 'admin-message'}">
+                                    <div class="message-header">
+                                        <span class="message-author">${msg.displayName || msg.userEmail}</span>
+                                        <span class="message-time">${formatDate(msg.timestamp)}</span>
+                                    </div>
+                                    <div class="message-content">
+                                        ${msg.imageUrl ? `<img src="${msg.imageUrl}" class="message-detail-image" alt="画像">` : ''}
+                                        ${msg.text ? `<p>${msg.text}</p>` : ''}
+                                    </div>
+                                </div>
+                            `).join('') : 
+                            '<p>メッセージがありません</p>'
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="detail-modal-footer">
+                <button onclick="closeQuestionDetail()" class="close-btn">閉じる</button>
+                <button onclick="openChatFromAdmin('${question.id}')" class="view-chat-btn">チャットを開く</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(detailModal);
+    detailModal.style.display = 'flex';
+}
+
+// 質問詳細モーダルを閉じる
+function closeQuestionDetail() {
+    const modal = document.querySelector('.question-detail-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// 管理者ページからチャットを開く
+function openChatFromAdmin(questionId) {
+    closeQuestionDetail();
+    showChat(questionId);
+}
+
+// チャプター選択を更新
+function updateChapterSelect() {
+    const chapterSelect = document.getElementById('chapter-select');
+    if (!chapterSelect) return;
+    
+    chapterSelect.innerHTML = '<option value="">チャプターを選択</option>';
+    
+    const tags = window.demoAuth.getTags() || [];
+    tags.forEach(tag => {
+        const option = document.createElement('option');
+        option.value = tag.id || tag.name;
+        option.textContent = tag.name;
+        chapterSelect.appendChild(option);
+    });
+}
+
+// チャプター別コンテンツを読み込む
+function loadChapterContent() {
+    const chapterSelect = document.getElementById('chapter-select');
+    const chapterId = chapterSelect.value;
+    const contentContainer = document.getElementById('chapter-content');
+    
+    if (!chapterId || !contentContainer) {
+        contentContainer.innerHTML = '';
+        return;
+    }
+    
+    if (!window.demoAuth) return;
+    
+    const questions = window.demoAuth.getQuestions() || [];
+    const tagName = chapterSelect.options[chapterSelect.selectedIndex].text;
+    
+    // このチャプターに関連する質問を取得（タグでフィルタリング）
+    const chapterQuestions = questions.filter(q => {
+        // タグが設定されている場合はタグでフィルタ、ない場合はカテゴリでフィルタ
+        return true; // 暫定的にすべて表示
+    });
+    
+    let html = `<h4>${tagName} - ${chapterQuestions.length}件の質問</h4>`;
+    
+    if (chapterQuestions.length === 0) {
+        html += '<p>このチャプターに関連する質問がありません</p>';
+    } else {
+        chapterQuestions.forEach(question => {
+            const messages = window.demoAuth.getQuestionMessages(question.id) || [];
+            html += `
+                <div class="chapter-question-item">
+                    <div class="question-header-section">
+                        <h5>【${getCategoryName(question.category)}】${question.title}</h5>
+                        <span class="question-status ${question.status === 'resolved' ? 'resolved' : 'pending'}">
+                            ${question.status === 'resolved' ? '解決済み' : '対応中'}
+                        </span>
+                    </div>
+                    <div class="question-content-section">
+                        <div class="question-text">${question.text}</div>
+                        ${question.imageUrl ? `<img src="${question.imageUrl}" class="question-image-small" alt="質問画像">` : ''}
+                    </div>
+                    <div class="answer-section">
+                        <strong>回答:</strong>
+                        ${messages.length > 0 ? 
+                            messages.map(m => `<div class="answer-item">${m.text || '(画像のみ)'}</div>`).join('') : 
+                            '<div class="answer-item">回答なし</div>'
+                        }
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    contentContainer.innerHTML = html;
+}
+
+// 教育資材をエクスポート
+function exportEducationMaterial() {
+    if (!window.demoAuth) return;
+    
+    const questions = window.demoAuth.getQuestions() || [];
+    const resolvedQuestions = questions.filter(q => q.status === 'resolved');
+    
+    if (resolvedQuestions.length === 0) {
+        alert('エクスポートできる解決済みの質問がありません');
+        return;
+    }
+    
+    // Markdown形式でエクスポート
+    exportAsMarkdown();
+}
+
+// Markdown形式でエクスポート
+function exportAsMarkdown() {
+    if (!window.demoAuth) return;
+    
+    const questions = window.demoAuth.getQuestions() || [];
+    const resolvedQuestions = questions.filter(q => q.status === 'resolved');
+    
+    let markdown = '# いちご栽培相談集\n\n';
+    markdown += `作成日: ${new Date().toLocaleDateString('ja-JP')}\n`;
+    markdown += `総質問数: ${resolvedQuestions.length}件\n\n`;
+    markdown += '---\n\n';
+    
+    // カテゴリごとに整理
+    const categories = {};
+    resolvedQuestions.forEach(q => {
+        const categoryName = getCategoryName(q.category);
+        if (!categories[categoryName]) {
+            categories[categoryName] = [];
+        }
+        categories[categoryName].push(q);
+    });
+    
+    Object.keys(categories).sort().forEach(categoryName => {
+        markdown += `## ${categoryName}\n\n`;
+        
+        categories[categoryName].forEach((question, index) => {
+            const messages = window.demoAuth.getQuestionMessages(question.id) || [];
+            
+            markdown += `### ${index + 1}. ${question.title}\n\n`;
+            markdown += `**質問:**\n${question.text}\n\n`;
+            
+            if (question.imageUrl) {
+                markdown += `![質問画像](${question.imageUrl})\n\n`;
+            }
+            
+            if (messages.length > 0) {
+                markdown += `**回答:**\n`;
+                messages.forEach((msg, msgIndex) => {
+                    markdown += `${msgIndex + 1}. ${msg.text || '(画像のみ)'}\n`;
+                });
+                markdown += '\n';
+            } else {
+                markdown += `**回答:** 回答なし\n\n`;
+            }
+            
+            markdown += '---\n\n';
+        });
+    });
+    
+    // ダウンロード
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `いちご栽培相談集_${new Date().toISOString().split('T')[0]}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// PDF形式でエクスポート（簡易版：HTMLを印刷）
+function exportAsPDF() {
+    const preview = document.getElementById('education-preview');
+    if (!preview || preview.innerHTML === '') {
+        alert('まず「教科書形式でプレビュー」を実行してください');
+        return;
+    }
+    
+    // 新しいウィンドウで開いて印刷
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>いちご栽培相談集</title>
+            <style>
+                body { font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; padding: 20px; }
+                h1 { color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+                h2 { color: #667eea; margin-top: 30px; }
+                h3 { color: #555; margin-top: 20px; }
+                .question { background: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 8px; }
+                .answer { background: #e8f5e9; padding: 15px; margin: 10px 0; border-radius: 8px; }
+                img { max-width: 100%; height: auto; }
+            </style>
+        </head>
+        <body>
+            ${preview.innerHTML}
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+}
+
+// 教科書形式でプレビュー
+function generateTextbookPreview() {
+    if (!window.demoAuth) return;
+    
+    const questions = window.demoAuth.getQuestions() || [];
+    const resolvedQuestions = questions.filter(q => q.status === 'resolved');
+    
+    if (resolvedQuestions.length === 0) {
+        document.getElementById('education-preview').innerHTML = '<p>解決済みの質問がありません</p>';
+        return;
+    }
+    
+    let html = '<div class="textbook-preview">';
+    html += '<h1>🍓 いちご栽培相談集</h1>';
+    html += `<p class="textbook-meta">作成日: ${new Date().toLocaleDateString('ja-JP')} | 総質問数: ${resolvedQuestions.length}件</p>`;
+    html += '<hr>';
+    
+    // カテゴリごとに整理
+    const categories = {};
+    resolvedQuestions.forEach(q => {
+        const categoryName = getCategoryName(q.category);
+        if (!categories[categoryName]) {
+            categories[categoryName] = [];
+        }
+        categories[categoryName].push(q);
+    });
+    
+    Object.keys(categories).sort().forEach(categoryName => {
+        html += `<h2>${categoryName}</h2>`;
+        
+        categories[categoryName].forEach((question, index) => {
+            const messages = window.demoAuth.getQuestionMessages(question.id) || [];
+            
+            html += `<div class="textbook-item">`;
+            html += `<h3>${index + 1}. ${question.title}</h3>`;
+            html += `<div class="textbook-question">`;
+            html += `<p><strong>質問:</strong></p>`;
+            html += `<p>${question.text}</p>`;
+            if (question.imageUrl) {
+                html += `<img src="${question.imageUrl}" alt="質問画像" class="textbook-image">`;
+            }
+            html += `</div>`;
+            
+            if (messages.length > 0) {
+                html += `<div class="textbook-answer">`;
+                html += `<p><strong>回答:</strong></p>`;
+                messages.forEach((msg, msgIndex) => {
+                    html += `<div class="answer-block">`;
+                    if (msg.imageUrl) {
+                        html += `<img src="${msg.imageUrl}" alt="回答画像" class="textbook-image">`;
+                    }
+                    if (msg.text) {
+                        html += `<p>${msg.text}</p>`;
+                    }
+                    html += `</div>`;
+                });
+                html += `</div>`;
+            } else {
+                html += `<div class="textbook-answer"><p>回答なし</p></div>`;
+            }
+            
+            html += `</div>`;
+            html += `<hr>`;
+        });
+    });
+    
+    html += '</div>';
+    
+    document.getElementById('education-preview').innerHTML = html;
 }
 
 // すべてのメッセージを読み込む
 async function loadAllMessages() {
+    const useDemoMode = !auth || !db || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        // デモモード: ローカルストレージから読み込み
+        if (window.demoAuth) {
+            allMessages = window.demoAuth.getMessages() || [];
+            // タイムスタンプでソート（降順）
+            allMessages.sort((a, b) => {
+                const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                return bTime - aTime;
+            });
+            filteredMessages = [...allMessages];
+        } else {
+            allMessages = [];
+            filteredMessages = [];
+        }
+        return;
+    }
+    
+    // Firebaseモード
     try {
         const messagesRef = window.firebaseFunctions.collection(db, 'messages');
         const querySnapshot = await window.firebaseFunctions.getDocs(messagesRef);
@@ -1519,6 +2187,26 @@ async function loadAllMessages() {
 
 // タグを読み込む
 async function loadTags() {
+    const useDemoMode = !auth || !db || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        // デモモード: ローカルストレージから読み込み
+        if (window.demoAuth) {
+            const tags = window.demoAuth.getTags() || [];
+            allTags = tags.map(tag => ({
+                id: tag.id || tag.name,
+                name: tag.name,
+                createdAt: tag.createdAt || new Date()
+            }));
+            allTags.sort((a, b) => a.name.localeCompare(b.name));
+            renderTags();
+        } else {
+            allTags = [];
+        }
+        return;
+    }
+    
+    // Firebaseモード
     try {
         const tagsRef = window.firebaseFunctions.collection(db, 'tags');
         const querySnapshot = await window.firebaseFunctions.getDocs(tagsRef);
@@ -1557,6 +2245,19 @@ async function addNewTag() {
         return;
     }
     
+    const useDemoMode = !auth || !db || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        // デモモード: ローカルストレージに保存
+        if (window.demoAuth) {
+            window.demoAuth.addTag(tagName);
+            tagInput.value = '';
+            await loadTags();
+        }
+        return;
+    }
+    
+    // Firebaseモード
     try {
         const tagsRef = window.firebaseFunctions.collection(db, 'tags');
         await window.firebaseFunctions.addDoc(tagsRef, {
@@ -1592,6 +2293,20 @@ function renderTags() {
 async function deleteTag(tagId) {
     if (!confirm('このタグを削除しますか？')) return;
     
+    const useDemoMode = !auth || !db || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        // デモモード: ローカルストレージから削除
+        if (window.demoAuth) {
+            window.demoAuth.deleteTag(tagId);
+            await loadTags();
+            await loadAllMessages();
+            renderAdminMessages();
+        }
+        return;
+    }
+    
+    // Firebaseモード
     try {
         const tagRef = window.firebaseFunctions.doc(db, 'tags', tagId);
         await tagRef.delete();

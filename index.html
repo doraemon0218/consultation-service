@@ -165,39 +165,115 @@
         </div>
         
         <div class="admin-content">
-            <!-- タグ管理セクション -->
-            <div class="admin-section">
-                <h3>タグ管理（チャプター名）</h3>
-                <div class="tag-management">
-                    <div class="tag-input-group">
-                        <input type="text" id="new-tag-input" placeholder="新しいタグ（チャプター名）を追加">
-                        <button onclick="addNewTag()" class="add-tag-btn">追加</button>
+            <!-- タブ切り替え -->
+            <div class="admin-tabs">
+                <button class="admin-tab active" onclick="switchAdminTab('management')">管理</button>
+                <button class="admin-tab" onclick="switchAdminTab('education')">教育資材</button>
+            </div>
+
+            <!-- 管理タブ -->
+            <div id="admin-tab-management" class="admin-tab-content active">
+                <!-- タグ管理セクション -->
+                <div class="admin-section">
+                    <h3>タグ管理（チャプター名）</h3>
+                    <div class="tag-management">
+                        <div class="tag-input-group">
+                            <input type="text" id="new-tag-input" placeholder="新しいタグ（チャプター名）を追加">
+                            <button onclick="addNewTag()" class="add-tag-btn">追加</button>
+                        </div>
+                        <div id="tags-list" class="tags-list"></div>
                     </div>
-                    <div id="tags-list" class="tags-list"></div>
+                </div>
+
+                <!-- フィルターセクション -->
+                <div class="admin-section">
+                    <h3>フィルター</h3>
+                    <div class="filter-controls">
+                        <select id="tag-filter" onchange="filterMessages()">
+                            <option value="">すべてのタグ</option>
+                        </select>
+                        <input type="text" id="search-input" placeholder="テキスト検索..." onkeyup="filterMessages()">
+                        <button onclick="clearFilters()" class="clear-filter-btn">フィルター解除</button>
+                    </div>
+                </div>
+
+                <!-- 投稿一覧 -->
+                <div class="admin-section">
+                    <h3>投稿一覧</h3>
+                    <div class="messages-controls">
+                        <button onclick="selectAllMessages()" class="control-btn">すべて選択</button>
+                        <button onclick="deselectAllMessages()" class="control-btn">選択解除</button>
+                        <button onclick="mergeSelectedMessages()" class="control-btn merge-btn">選択した質問を統合</button>
+                    </div>
+                    <div id="admin-messages-container" class="admin-messages-container"></div>
                 </div>
             </div>
 
-            <!-- フィルターセクション -->
-            <div class="admin-section">
-                <h3>フィルター</h3>
-                <div class="filter-controls">
-                    <select id="tag-filter" onchange="filterMessages()">
-                        <option value="">すべてのタグ</option>
-                    </select>
-                    <input type="text" id="search-input" placeholder="テキスト検索..." onkeyup="filterMessages()">
-                    <button onclick="clearFilters()" class="clear-filter-btn">フィルター解除</button>
+            <!-- 教育資材タブ -->
+            <div id="admin-tab-education" class="admin-tab-content">
+                <!-- 統計情報と概要 -->
+                <div class="admin-section">
+                    <h3>統計情報と質問の特徴</h3>
+                    <div id="education-stats" class="education-stats"></div>
+                    <div id="question-overview" class="question-overview"></div>
                 </div>
-            </div>
 
-            <!-- 投稿一覧 -->
-            <div class="admin-section">
-                <h3>投稿一覧</h3>
-                <div class="messages-controls">
-                    <button onclick="selectAllMessages()" class="control-btn">すべて選択</button>
-                    <button onclick="deselectAllMessages()" class="control-btn">選択解除</button>
-                    <button onclick="mergeSelectedMessages()" class="control-btn merge-btn">選択した質問を統合</button>
+                <!-- 質問一覧（全ユーザー） -->
+                <div class="admin-section">
+                    <h3>すべての質問一覧</h3>
+                    <div class="question-list-controls">
+                        <div class="filter-group">
+                            <select id="category-filter" onchange="filterAllQuestions()">
+                                <option value="">すべてのカテゴリ</option>
+                                <option value="soil-preparation">土づくり・準備</option>
+                                <option value="planting">植え付け</option>
+                                <option value="watering">水やり</option>
+                                <option value="fertilization">施肥・肥料</option>
+                                <option value="temperature">温度管理</option>
+                                <option value="lighting">光管理</option>
+                                <option value="pollination">受粉</option>
+                                <option value="pruning">剪定・整枝</option>
+                                <option value="pest-control">病害虫対策</option>
+                                <option value="harvesting">収穫</option>
+                                <option value="post-harvest">収穫後処理</option>
+                                <option value="variety-selection">品種選び</option>
+                                <option value="facility-management">施設管理</option>
+                                <option value="other">その他</option>
+                            </select>
+                            <select id="status-filter" onchange="filterAllQuestions()">
+                                <option value="">すべてのステータス</option>
+                                <option value="resolved">解決済み</option>
+                                <option value="admin-notified">対応中</option>
+                                <option value="pending">保留中</option>
+                            </select>
+                            <input type="text" id="question-search" placeholder="質問を検索..." onkeyup="filterAllQuestions()">
+                        </div>
+                    </div>
+                    <div id="all-questions-list" class="all-questions-list"></div>
                 </div>
-                <div id="admin-messages-container" class="admin-messages-container"></div>
+
+                <!-- チャプター別表示 -->
+                <div class="admin-section">
+                    <h3>チャプター別整理</h3>
+                    <div class="chapter-controls">
+                        <select id="chapter-select" onchange="loadChapterContent()">
+                            <option value="">チャプターを選択</option>
+                        </select>
+                        <button onclick="exportEducationMaterial()" class="export-btn">教育資材をエクスポート</button>
+                    </div>
+                    <div id="chapter-content" class="chapter-content"></div>
+                </div>
+
+                <!-- 教育資材プレビュー -->
+                <div class="admin-section">
+                    <h3>教育資材プレビュー</h3>
+                    <div class="education-preview-controls">
+                        <button onclick="generateTextbookPreview()" class="preview-btn">教科書形式でプレビュー</button>
+                        <button onclick="exportAsMarkdown()" class="export-btn">Markdown形式でエクスポート</button>
+                        <button onclick="exportAsPDF()" class="export-btn">PDF形式でエクスポート</button>
+                    </div>
+                    <div id="education-preview" class="education-preview"></div>
+                </div>
             </div>
         </div>
     </div>
