@@ -135,6 +135,7 @@ function showAuth() {
     document.getElementById('chat-container').style.display = 'none';
     document.getElementById('settings-page').style.display = 'none';
     document.getElementById('admin-page').style.display = 'none';
+    document.getElementById('consultation-history').style.display = 'none';
 }
 
 // トップページを表示
@@ -145,6 +146,7 @@ function showTopPage() {
     document.getElementById('chat-container').style.display = 'none';
     document.getElementById('settings-page').style.display = 'none';
     document.getElementById('admin-page').style.display = 'none';
+    document.getElementById('consultation-history').style.display = 'none';
     currentQuestionId = null;
     updateTopPageUserDisplay();
 }
@@ -157,6 +159,7 @@ function showQuestionForm() {
     document.getElementById('chat-container').style.display = 'none';
     document.getElementById('settings-page').style.display = 'none';
     document.getElementById('admin-page').style.display = 'none';
+    document.getElementById('consultation-history').style.display = 'none';
     
     // フォームをリセット
     document.getElementById('question-category').value = '';
@@ -176,12 +179,14 @@ function showChat(questionId) {
         const questionForm = document.getElementById('question-form');
         const settingsPage = document.getElementById('settings-page');
         const adminPage = document.getElementById('admin-page');
+        const consultationHistory = document.getElementById('consultation-history');
         
         if (authContainer) authContainer.style.display = 'none';
         if (topPage) topPage.style.display = 'none';
         if (questionForm) questionForm.style.display = 'none';
         if (settingsPage) settingsPage.style.display = 'none';
         if (adminPage) adminPage.style.display = 'none';
+        if (consultationHistory) consultationHistory.style.display = 'none';
         
         // チャット画面を表示
         const chatContainer = document.getElementById('chat-container');
@@ -211,6 +216,19 @@ function showChat(questionId) {
                 if (chatTitle) {
                     chatTitle.textContent = question.title;
                     console.log('チャットタイトルを設定:', question.title);
+                }
+                
+                // 質問ヘッダーを表示（タイトルと画像）
+                displayQuestionHeader(question);
+                
+                // 解決済みでない場合は「解決しました！」ボタンを表示
+                const resolveButtonContainer = document.getElementById('resolve-button-container');
+                if (resolveButtonContainer) {
+                    if (question.status !== 'resolved') {
+                        resolveButtonContainer.style.display = 'block';
+                    } else {
+                        resolveButtonContainer.style.display = 'none';
+                    }
                 }
                 
                 // 管理者に通知されている場合はステータスを表示
@@ -252,6 +270,7 @@ function showSettings() {
     document.getElementById('chat-container').style.display = 'none';
     document.getElementById('settings-page').style.display = 'flex';
     document.getElementById('admin-page').style.display = 'none';
+    document.getElementById('consultation-history').style.display = 'none';
     loadSettingsForm();
 }
 
@@ -267,9 +286,86 @@ function showAdminPage() {
     document.getElementById('question-form').style.display = 'none';
     document.getElementById('chat-container').style.display = 'none';
     document.getElementById('settings-page').style.display = 'none';
+    document.getElementById('consultation-history').style.display = 'none';
     document.getElementById('admin-page').style.display = 'flex';
     
     loadAdminData();
+}
+
+// 相談履歴画面を表示
+function showConsultationHistory() {
+    document.getElementById('auth-container').style.display = 'none';
+    document.getElementById('top-page').style.display = 'none';
+    document.getElementById('question-form').style.display = 'none';
+    document.getElementById('chat-container').style.display = 'none';
+    document.getElementById('settings-page').style.display = 'none';
+    document.getElementById('admin-page').style.display = 'none';
+    document.getElementById('consultation-history').style.display = 'flex';
+    
+    loadConsultationHistory();
+}
+
+// 相談履歴を読み込む
+function loadConsultationHistory() {
+    if (!window.demoAuth || !currentUser) {
+        console.error('demoAuth or currentUser is not available');
+        return;
+    }
+    
+    const questions = window.demoAuth.getQuestions();
+    // 現在のユーザーの質問のみをフィルタリング
+    const userQuestions = questions.filter(q => q.userId === currentUser.uid);
+    // 作成日時でソート（新しい順）
+    userQuestions.sort((a, b) => {
+        const aTime = new Date(a.createdAt).getTime();
+        const bTime = new Date(b.createdAt).getTime();
+        return bTime - aTime;
+    });
+    
+    const historyList = document.getElementById('history-list');
+    if (!historyList) return;
+    
+    historyList.innerHTML = '';
+    
+    if (userQuestions.length === 0) {
+        historyList.innerHTML = '<div class="no-history">相談履歴がありません</div>';
+        return;
+    }
+    
+    userQuestions.forEach((question) => {
+        const historyItem = document.createElement('div');
+        historyItem.className = 'history-item';
+        
+        const statusBadge = question.status === 'resolved' ? 
+            '<span class="status-badge resolved">解決済み</span>' : 
+            '<span class="status-badge pending">対応中</span>';
+        
+        historyItem.innerHTML = `
+            <div class="history-item-header">
+                <div class="history-item-title">【${getCategoryName(question.category)}】${question.title}</div>
+                ${statusBadge}
+            </div>
+            <div class="history-item-text">${question.text.substring(0, 100)}${question.text.length > 100 ? '...' : ''}</div>
+            <div class="history-item-footer">
+                <span class="history-item-date">${formatDate(question.createdAt)}</span>
+                <button onclick="openChatFromHistory('${question.id}')" class="view-chat-btn">チャットを見る</button>
+            </div>
+        `;
+        
+        historyList.appendChild(historyItem);
+    });
+}
+
+// 履歴からチャットを開く
+function openChatFromHistory(questionId) {
+    showChat(questionId);
+}
+
+// 日付をフォーマット
+function formatDate(date) {
+    if (!date) return '';
+    const d = new Date(date);
+    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 // サインアップフォームを表示
@@ -894,26 +990,13 @@ function loadChatMessages(questionId) {
         
         messagesContainer.innerHTML = '';
         
-        // 質問を最初のメッセージとして表示
+        // 質問の本文を最初のメッセージとして表示（タイトルと画像は上部に固定表示されているので、本文のみ）
         if (question) {
             const questionDiv = document.createElement('div');
             questionDiv.className = 'message own';
             
             const bubble = document.createElement('div');
             bubble.className = 'message-bubble';
-            
-            const titleDiv = document.createElement('div');
-            titleDiv.className = 'question-title';
-            titleDiv.textContent = `【${getCategoryName(question.category)}】${question.title}`;
-            bubble.appendChild(titleDiv);
-            
-            if (question.imageUrl) {
-                const img = document.createElement('img');
-                img.src = question.imageUrl;
-                img.className = 'message-image';
-                img.alt = '質問画像';
-                bubble.appendChild(img);
-            }
             
             const textDiv = document.createElement('div');
             textDiv.className = 'message-text';
@@ -968,6 +1051,78 @@ function loadChatMessages(questionId) {
         });
 
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+}
+
+// 質問ヘッダーを表示（タイトルと画像を固定表示）
+function displayQuestionHeader(question) {
+    const questionHeader = document.getElementById('question-header');
+    const questionHeaderTitle = document.getElementById('question-header-title');
+    const questionHeaderImage = document.getElementById('question-header-image');
+    
+    if (!questionHeader || !questionHeaderTitle || !questionHeaderImage) {
+        console.error('質問ヘッダーの要素が見つかりません');
+        return;
+    }
+    
+    // タイトルを設定
+    questionHeaderTitle.textContent = `【${getCategoryName(question.category)}】${question.title}`;
+    
+    // 画像がある場合は表示
+    if (question.imageUrl) {
+        const img = document.createElement('img');
+        img.src = question.imageUrl;
+        img.className = 'question-header-image-content';
+        img.alt = '質問画像';
+        img.onclick = () => window.open(question.imageUrl, '_blank');
+        questionHeaderImage.innerHTML = '';
+        questionHeaderImage.appendChild(img);
+    } else {
+        questionHeaderImage.innerHTML = '';
+    }
+    
+    // ヘッダーを表示
+    questionHeader.style.display = 'block';
+}
+
+// 質問を解決済みにする
+function resolveQuestion() {
+    if (!currentQuestionId) {
+        alert('質問が見つかりません');
+        return;
+    }
+    
+    if (!window.demoAuth) {
+        alert('システムエラーが発生しました');
+        return;
+    }
+    
+    const question = window.demoAuth.getQuestionById(currentQuestionId);
+    if (!question) {
+        alert('質問が見つかりません');
+        return;
+    }
+    
+    // 確認ダイアログ
+    if (!confirm('この質問を解決済みにしますか？\nチャットルームは閉じられますが、履歴から確認できます。')) {
+        return;
+    }
+    
+    try {
+        // 質問のステータスを「解決済み」に更新
+        window.demoAuth.updateQuestion(currentQuestionId, {
+            status: 'resolved',
+            resolvedAt: new Date()
+        });
+        
+        // トップページに戻る
+        showTopPage();
+        
+        alert('質問を解決済みにしました。履歴から確認できます。');
+        
+    } catch (error) {
+        console.error('質問解決エラー:', error);
+        alert('エラーが発生しました: ' + error.message);
     }
 }
 
