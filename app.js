@@ -676,6 +676,63 @@ function handleKeyPress(event) {
 
 // メッセージを読み込む
 function loadMessages() {
+    // デモモードかどうかを確認
+    const useDemoMode = !auth || !db || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        // デモモード: ローカルストレージから読み込み
+        const messages = window.demoAuth.getMessages();
+        const messagesContainer = document.getElementById('messages-container');
+        if (!messagesContainer) return;
+        
+        messagesContainer.innerHTML = '';
+
+        messages.forEach((message) => {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${message.userId === currentUser.uid ? 'own' : 'other'}`;
+
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            
+            // 画像がある場合は表示
+            if (message.imageUrl) {
+                const img = document.createElement('img');
+                img.src = message.imageUrl;
+                img.className = 'message-image';
+                img.alt = 'アップロードされた画像';
+                img.onclick = () => window.open(message.imageUrl, '_blank');
+                bubble.appendChild(img);
+            }
+            
+            // テキストがある場合は表示
+            if (message.text) {
+                const textDiv = document.createElement('div');
+                textDiv.className = 'message-text';
+                textDiv.textContent = message.text;
+                bubble.appendChild(textDiv);
+            }
+
+            const info = document.createElement('div');
+            info.className = 'message-info';
+            
+            if (message.userId !== currentUser.uid) {
+                const username = document.createElement('div');
+                username.className = 'message-username';
+                username.textContent = message.displayName || message.userEmail;
+                messageDiv.appendChild(username);
+            }
+
+            messageDiv.appendChild(bubble);
+            messageDiv.appendChild(info);
+            messagesContainer.appendChild(messageDiv);
+        });
+
+        // スクロールを最下部に
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        return;
+    }
+
+    // Firebaseモード
     if (unsubscribeMessages) {
         unsubscribeMessages();
     }
