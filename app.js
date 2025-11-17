@@ -176,13 +176,19 @@ function updateAdminCardVisibility() {
         if (useDemoMode && currentUser) {
             // デモモードでは常に管理者として扱う
             isAdmin = true;
-            adminCard.style.display = 'block';
+            // インラインスタイルを削除してCSSクラスで制御
+            adminCard.style.display = '';
+            adminCard.classList.add('admin-card-always-visible');
+            adminCard.classList.remove('admin-card-hidden');
         } else if (isAdmin) {
-            adminCard.style.display = 'block';
+            adminCard.style.display = '';
+            adminCard.classList.add('admin-card-always-visible');
+            adminCard.classList.remove('admin-card-hidden');
         } else {
-            adminCard.style.display = 'none';
+            adminCard.classList.add('admin-card-hidden');
+            adminCard.classList.remove('admin-card-always-visible');
         }
-        console.log('管理者カードの表示状態を更新:', adminCard.style.display, 'isAdmin:', isAdmin, 'useDemoMode:', useDemoMode);
+        console.log('管理者カードの表示状態を更新:', adminCard.className, 'isAdmin:', isAdmin, 'useDemoMode:', useDemoMode);
     } else {
         console.warn('admin-card要素が見つかりません');
     }
@@ -231,6 +237,11 @@ function showTopPage() {
     setTimeout(() => {
         updateAdminCardVisibility();
     }, 100);
+    
+    // さらに遅延して確実に表示（複数回の画面遷移に対応）
+    setTimeout(() => {
+        updateAdminCardVisibility();
+    }, 300);
 }
 
 // 質問フォーム画面を表示
@@ -769,8 +780,17 @@ function updateTopPageUserDisplay() {
             topUserNameEl.textContent = `👤 ${displayName}`;
         }
     }
-    // 管理者カードの表示を更新
+    // 管理者カードの表示を更新（確実に表示）
+    const useDemoMode = !window.firebaseAuth || !window.firebaseDb;
+    if (useDemoMode && currentUser) {
+        isAdmin = true;
+    }
     updateAdminCardVisibility();
+    
+    // さらに確実に表示するため、少し遅延してからも更新
+    setTimeout(() => {
+        updateAdminCardVisibility();
+    }, 50);
 }
 
 // 個人設定を読み込む

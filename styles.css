@@ -1205,6 +1205,19 @@ body {
     background: #e0e0e0;
 }
 
+/* 管理者カードの常時表示 */
+.admin-card-always-visible {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.admin-card-hidden {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+}
+
 .view-chat-btn {
     padding: 10px 20px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
