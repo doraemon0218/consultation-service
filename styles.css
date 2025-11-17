@@ -162,6 +162,29 @@ body {
     display: block;
 }
 
+/* スキップボタン */
+.skip-section {
+    margin-top: 20px;
+    text-align: center;
+    padding-top: 20px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.skip-btn {
+    padding: 10px 20px;
+    background: #95a5a6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.skip-btn:hover {
+    background: #7f8c8d;
+}
+
 /* チャット画面 */
 .chat-container {
     display: flex;

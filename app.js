@@ -400,6 +400,26 @@ async function handleGoogleLogin() {
     }
 }
 
+// ログインをスキップ
+function skipLogin() {
+    // デモユーザーを作成してログイン状態にする
+    const demoUser = {
+        uid: 'demo_user_' + Date.now(),
+        email: 'demo@example.com',
+        displayName: 'デモユーザー',
+        username: 'デモユーザー'
+    };
+    
+    currentUser = demoUser;
+    window.demoAuth.saveCurrentUser(demoUser);
+    
+    // トップページに移動
+    checkAdminStatus();
+    showTopPage();
+    loadUserSettings();
+    updateUserDisplay();
+}
+
 // ログアウト処理
 async function handleLogout() {
     // デモモードかどうかを確認
