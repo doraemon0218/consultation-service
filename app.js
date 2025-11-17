@@ -153,7 +153,17 @@ async function checkAdminStatus() {
 function updateAdminCardVisibility() {
     const adminCard = document.getElementById('admin-card');
     if (adminCard) {
-        adminCard.style.display = isAdmin ? 'block' : 'none';
+        // デモモードでは常に表示（または管理者権限がある場合）
+        const useDemoMode = !window.firebaseAuth || !window.firebaseDb;
+        if (useDemoMode) {
+            // デモモードでは常に管理者として扱う
+            adminCard.style.display = 'block';
+        } else {
+            adminCard.style.display = isAdmin ? 'block' : 'none';
+        }
+        console.log('管理者カードの表示状態を更新:', adminCard.style.display, 'isAdmin:', isAdmin);
+    } else {
+        console.warn('admin-card要素が見つかりません');
     }
 }
 
@@ -178,7 +188,13 @@ function showTopPage() {
     document.getElementById('admin-page').style.display = 'none';
     document.getElementById('consultation-history').style.display = 'none';
     currentQuestionId = null;
-    updateTopPageUserDisplay();
+    
+    // 管理者権限を再確認してカードを表示
+    checkAdminStatus().then(() => {
+        updateTopPageUserDisplay();
+    }).catch(() => {
+        updateTopPageUserDisplay();
+    });
 }
 
 // 質問フォーム画面を表示
