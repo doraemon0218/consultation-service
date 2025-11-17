@@ -447,12 +447,19 @@ function updateTopPageUserDisplay() {
 async function loadUserSettings() {
     if (!currentUser) return;
     
+    // デモモードかどうかを確認
+    const useDemoMode = !auth || !db || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        return window.demoAuth.getUserSettings(currentUser.uid);
+    }
+    
+    // Firebaseモード
     try {
         const userDocRef = window.firebaseFunctions.doc(db, 'users', currentUser.uid);
         const userDoc = await window.firebaseFunctions.getDoc(userDocRef);
         
         if (userDoc.exists()) {
-            // 設定が存在する場合は使用（後で使用する可能性がある）
             return userDoc.data();
         }
     } catch (error) {
@@ -465,6 +472,18 @@ async function loadUserSettings() {
 async function loadSettingsForm() {
     if (!currentUser) return;
     
+    // デモモードかどうかを確認
+    const useDemoMode = !auth || !db || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        const settings = window.demoAuth.getUserSettings(currentUser.uid);
+        document.getElementById('setting-age').value = settings.age || '';
+        document.getElementById('setting-consultations-per-day').value = settings.consultationsPerDay || '1';
+        document.getElementById('setting-email-notification').checked = settings.emailNotification !== false;
+        return;
+    }
+    
+    // Firebaseモード
     try {
         const userDocRef = window.firebaseFunctions.doc(db, 'users', currentUser.uid);
         const userDoc = await window.firebaseFunctions.getDoc(userDocRef);
@@ -488,6 +507,35 @@ async function saveSettings() {
     const consultationsPerDay = document.getElementById('setting-consultations-per-day').value;
     const emailNotification = document.getElementById('setting-email-notification').checked;
     
+    // デモモードかどうかを確認
+    const useDemoMode = !auth || !db || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        try {
+            window.demoAuth.saveUserSettings(currentUser.uid, {
+                age: age ? parseInt(age) : null,
+                consultationsPerDay: parseInt(consultationsPerDay),
+                emailNotification: emailNotification
+            });
+            
+            const messageEl = document.getElementById('settings-message');
+            messageEl.textContent = '設定を保存しました';
+            messageEl.className = 'settings-message success';
+            
+            setTimeout(() => {
+                messageEl.className = 'settings-message';
+                messageEl.textContent = '';
+            }, 3000);
+        } catch (error) {
+            console.error('設定保存エラー:', error);
+            const messageEl = document.getElementById('settings-message');
+            messageEl.textContent = '設定の保存に失敗しました';
+            messageEl.className = 'settings-message error';
+        }
+        return;
+    }
+    
+    // Firebaseモード
     try {
         const userDocRef = window.firebaseFunctions.doc(db, 'users', currentUser.uid);
         await window.firebaseFunctions.setDoc(userDocRef, {
@@ -553,6 +601,44 @@ async function sendMessage() {
     // テキストも画像もない場合は送信しない
     if (!messageText && !selectedImageFile) return;
 
+    // デモモードかどうかを確認
+    const useDemoMode = !auth || !db || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        // デモモード: ローカルストレージに保存
+        try {
+            // 画像がある場合はDataURLとして保存
+            if (selectedImageFile) {
+                const reader = new FileReader();
+                imageUrl = await new Promise((resolve) => {
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.readAsDataURL(selectedImageFile);
+                });
+            }
+
+            // メッセージを保存
+            window.demoAuth.addMessage({
+                text: messageText || '',
+                imageUrl: imageUrl || null,
+                userId: currentUser.uid,
+                userEmail: currentUser.email,
+                displayName: currentUser.displayName || currentUser.email
+            });
+
+            // フォームをクリア
+            messageInput.value = '';
+            cancelImageUpload();
+            
+            // メッセージを再読み込み
+            loadMessages();
+        } catch (error) {
+            console.error('メッセージ送信エラー:', error);
+            alert('メッセージの送信に失敗しました');
+        }
+        return;
+    }
+
+    // Firebaseモード
     try {
         // 画像がある場合はアップロード
         if (selectedImageFile) {
