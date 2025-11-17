@@ -102,33 +102,37 @@ async function init() {
 async function checkAdminStatus() {
     if (!currentUser) {
         isAdmin = false;
-        updateAdminCardVisibility();
-        return;
+        const topPage = document.getElementById('top-page');
+        if (topPage && topPage.style.display !== 'none') {
+            updateAdminCardVisibility();
+        }
+        return Promise.resolve();
     }
     
     // デモモード: 管理者権限を確認
     const useDemoMode = !window.firebaseAuth || !window.firebaseDb;
     
     if (useDemoMode) {
-        // デモモードでは、特定のメールアドレスまたは常に管理者として設定可能
-        // デモ用: 管理者として設定するメールアドレス（必要に応じて変更）
-        const adminEmails = ['admin@example.com', 'demo@example.com'];
-        // または、常に管理者として扱う（デモ用）
-        isAdmin = true; // デモモードでは常に管理者として扱う
+        // デモモードでは、常に管理者として扱う
+        isAdmin = true;
         
-        // 特定のメールアドレスのみ管理者にする場合は、以下のコメントを外す
-        // isAdmin = adminEmails.includes(currentUser.email);
-        
-        updateAdminCardVisibility();
-        return;
+        // トップページが表示されている場合のみカードを更新
+        const topPage = document.getElementById('top-page');
+        if (topPage && topPage.style.display !== 'none') {
+            updateAdminCardVisibility();
+        }
+        return Promise.resolve();
     }
     
     // Firebaseモード
     try {
         if (!db || !window.firebaseFunctions) {
             isAdmin = false;
-            updateAdminCardVisibility();
-            return;
+            const topPage = document.getElementById('top-page');
+            if (topPage && topPage.style.display !== 'none') {
+                updateAdminCardVisibility();
+            }
+            return Promise.resolve();
         }
         
         const userDocRef = window.firebaseFunctions.doc(db, 'users', currentUser.uid);
@@ -141,27 +145,44 @@ async function checkAdminStatus() {
             isAdmin = false;
         }
         
-        updateAdminCardVisibility();
+        const topPage = document.getElementById('top-page');
+        if (topPage && topPage.style.display !== 'none') {
+            updateAdminCardVisibility();
+        }
     } catch (error) {
         console.error('管理者確認エラー:', error);
         isAdmin = false;
-        updateAdminCardVisibility();
+        const topPage = document.getElementById('top-page');
+        if (topPage && topPage.style.display !== 'none') {
+            updateAdminCardVisibility();
+        }
     }
+    
+    return Promise.resolve();
 }
 
 // 管理者カードの表示/非表示を更新
 function updateAdminCardVisibility() {
+    // トップページが表示されていない場合は何もしない
+    const topPage = document.getElementById('top-page');
+    if (!topPage || topPage.style.display === 'none') {
+        return;
+    }
+    
     const adminCard = document.getElementById('admin-card');
     if (adminCard) {
         // デモモードでは常に表示（または管理者権限がある場合）
         const useDemoMode = !window.firebaseAuth || !window.firebaseDb;
-        if (useDemoMode) {
+        if (useDemoMode && currentUser) {
             // デモモードでは常に管理者として扱う
+            isAdmin = true;
+            adminCard.style.display = 'block';
+        } else if (isAdmin) {
             adminCard.style.display = 'block';
         } else {
-            adminCard.style.display = isAdmin ? 'block' : 'none';
+            adminCard.style.display = 'none';
         }
-        console.log('管理者カードの表示状態を更新:', adminCard.style.display, 'isAdmin:', isAdmin);
+        console.log('管理者カードの表示状態を更新:', adminCard.style.display, 'isAdmin:', isAdmin, 'useDemoMode:', useDemoMode);
     } else {
         console.warn('admin-card要素が見つかりません');
     }
@@ -189,12 +210,27 @@ function showTopPage() {
     document.getElementById('consultation-history').style.display = 'none';
     currentQuestionId = null;
     
+    // デモモードでは常に管理者として扱う
+    const useDemoMode = !window.firebaseAuth || !window.firebaseDb;
+    if (useDemoMode && currentUser) {
+        isAdmin = true;
+    }
+    
     // 管理者権限を再確認してカードを表示
     checkAdminStatus().then(() => {
         updateTopPageUserDisplay();
     }).catch(() => {
+        // エラー時もデモモードでは管理者カードを表示
+        if (useDemoMode && currentUser) {
+            isAdmin = true;
+        }
         updateTopPageUserDisplay();
     });
+    
+    // 念のため、少し遅延してからも更新（DOMが完全に読み込まれた後）
+    setTimeout(() => {
+        updateAdminCardVisibility();
+    }, 100);
 }
 
 // 質問フォーム画面を表示
