@@ -1226,9 +1226,17 @@ function handleImageSelect(event) {
 
 // 画像アップロードをキャンセル
 function cancelImageUpload() {
+    console.log('cancelImageUpload called');
     selectedImageFile = null;
-    document.getElementById('image-input').value = '';
-    document.getElementById('image-preview').style.display = 'none';
+    const imageInput = document.getElementById('image-input');
+    const imagePreview = document.getElementById('image-preview');
+    if (imageInput) {
+        imageInput.value = '';
+    }
+    if (imagePreview) {
+        imagePreview.style.display = 'none';
+    }
+    console.log('Image upload cancelled');
 }
 
 // メッセージを送信
