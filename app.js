@@ -717,6 +717,8 @@ function updateTopPageUserDisplay() {
             topUserNameEl.textContent = `👤 ${displayName}`;
         }
     }
+    // 管理者カードの表示を更新
+    updateAdminCardVisibility();
 }
 
 // 個人設定を読み込む
