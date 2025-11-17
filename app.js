@@ -149,13 +149,48 @@ function showTopPage() {
     updateTopPageUserDisplay();
 }
 
-// チャット画面を表示
-function showChat() {
+// 質問フォーム画面を表示
+function showQuestionForm() {
     document.getElementById('auth-container').style.display = 'none';
     document.getElementById('top-page').style.display = 'none';
+    document.getElementById('question-form').style.display = 'flex';
+    document.getElementById('chat-container').style.display = 'none';
+    document.getElementById('settings-page').style.display = 'none';
+    document.getElementById('admin-page').style.display = 'none';
+    
+    // フォームをリセット
+    document.getElementById('question-category').value = '';
+    document.getElementById('question-title').value = '';
+    document.getElementById('question-text').value = '';
+    cancelQuestionImageUpload();
+}
+
+// チャット画面を表示（質問フォームから）
+function showChat(questionId) {
+    document.getElementById('auth-container').style.display = 'none';
+    document.getElementById('top-page').style.display = 'none';
+    document.getElementById('question-form').style.display = 'none';
     document.getElementById('chat-container').style.display = 'flex';
     document.getElementById('settings-page').style.display = 'none';
-    loadMessages();
+    document.getElementById('admin-page').style.display = 'none';
+    
+    currentQuestionId = questionId;
+    
+    if (questionId) {
+        loadChatMessages(questionId);
+        const question = window.demoAuth.getQuestionById(questionId);
+        if (question) {
+            document.getElementById('chat-title').textContent = question.title;
+            // 管理者に通知されている場合はステータスを表示
+            if (question.status === 'admin-notified' || question.status === 'pending') {
+                document.getElementById('chat-status').style.display = 'block';
+            } else {
+                document.getElementById('chat-status').style.display = 'none';
+            }
+        }
+    } else {
+        loadMessages();
+    }
     updateUserDisplay();
 }
 
