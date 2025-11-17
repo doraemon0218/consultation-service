@@ -1205,6 +1205,257 @@ body {
     background: #e0e0e0;
 }
 
+.view-chat-btn {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.view-chat-btn:hover {
+    transform: translateY(-2px);
+}
+
+/* 管理者設定ページ */
+.section-description {
+    color: #666;
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.admin-settings-section {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.admin-settings-section h4 {
+    margin-bottom: 20px;
+    color: #333;
+    font-size: 18px;
+}
+
+.admin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.admin-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.admin-info {
+    flex: 1;
+}
+
+.admin-email {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.admin-notification {
+    font-size: 14px;
+    color: #666;
+}
+
+.admin-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.edit-admin-btn,
+.delete-admin-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.edit-admin-btn {
+    background: #667eea;
+    color: white;
+}
+
+.edit-admin-btn:hover {
+    background: #5568d3;
+}
+
+.delete-admin-btn {
+    background: #f44336;
+    color: white;
+}
+
+.delete-admin-btn:hover {
+    background: #d32f2f;
+}
+
+.add-admin-btn {
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s;
+    width: 100%;
+}
+
+.add-admin-btn:hover {
+    transform: translateY(-2px);
+}
+
+.new-admin-form {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
+}
+
+.new-admin-form h4 {
+    margin-bottom: 20px;
+    color: #333;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #333;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.form-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: flex-end;
+    margin-top: 25px;
+}
+
+.save-btn {
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.save-btn:hover {
+    transform: translateY(-2px);
+}
+
+.cancel-btn {
+    padding: 12px 24px;
+    background: #f5f5f5;
+    color: #333;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.cancel-btn:hover {
+    background: #e0e0e0;
+}
+
+.no-admins {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+}
+
+/* 難易度評価 */
+.difficulty-rating {
+    margin-top: 15px;
+}
+
+.star-rating-container {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.star {
+    font-size: 24px;
+    cursor: pointer;
+    transition: transform 0.2s;
+    user-select: none;
+}
+
+.star:hover {
+    transform: scale(1.2);
+}
+
+.star.active {
+    filter: drop-shadow(0 0 3px rgba(255, 193, 7, 0.5));
+}
+
+.rating-text {
+    margin-left: 10px;
+    color: #666;
+    font-size: 14px;
+}
+
+/* 質問カードに難易度表示を追加 */
+.question-card-header {
+    position: relative;
+}
+
+.difficulty-badge {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    font-size: 12px;
+    color: #ff9800;
+}
+
 .chat-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;

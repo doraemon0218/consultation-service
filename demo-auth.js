@@ -9,6 +9,7 @@ const DEMO_TAGS_KEY = 'demo_tags';
 const DEMO_USER_SETTINGS_KEY = 'demo_user_settings';
 const DEMO_QUESTIONS_KEY = 'demo_questions';
 const DEMO_QUESTION_MESSAGES_KEY = 'demo_question_messages';
+const DEMO_ADMIN_SETTINGS_KEY = 'demo_admin_settings';
 
 // ユーザーを取得
 function getUsers() {
@@ -228,6 +229,51 @@ function addQuestionMessage(questionId, message) {
     return newMessage;
 }
 
+// 管理者設定を取得
+function getAdminSettings() {
+    const settingsJson = localStorage.getItem(DEMO_ADMIN_SETTINGS_KEY);
+    return settingsJson ? JSON.parse(settingsJson) : { admins: [] };
+}
+
+// 管理者設定を保存
+function saveAdminSettings(settings) {
+    localStorage.setItem(DEMO_ADMIN_SETTINGS_KEY, JSON.stringify(settings));
+}
+
+// 管理者を追加
+function addAdmin(adminData) {
+    const settings = getAdminSettings();
+    const newAdmin = {
+        id: 'admin_' + Date.now(),
+        email: adminData.email,
+        notificationType: adminData.notificationType || 'realtime',
+        notificationInterval: adminData.notificationInterval || null,
+        createdAt: new Date()
+    };
+    settings.admins.push(newAdmin);
+    saveAdminSettings(settings);
+    return newAdmin;
+}
+
+// 管理者を削除
+function deleteAdmin(adminId) {
+    const settings = getAdminSettings();
+    settings.admins = settings.admins.filter(a => a.id !== adminId);
+    saveAdminSettings(settings);
+}
+
+// 管理者を更新
+function updateAdmin(adminId, updates) {
+    const settings = getAdminSettings();
+    const index = settings.admins.findIndex(a => a.id === adminId);
+    if (index !== -1) {
+        settings.admins[index] = { ...settings.admins[index], ...updates };
+        saveAdminSettings(settings);
+        return settings.admins[index];
+    }
+    return null;
+}
+
 // グローバルに公開
 window.demoAuth = {
     signup: demoSignup,
@@ -248,6 +294,11 @@ window.demoAuth = {
     getQuestionById: getQuestionById,
     updateQuestion: updateQuestion,
     getQuestionMessages: getQuestionMessages,
-    addQuestionMessage: addQuestionMessage
+    addQuestionMessage: addQuestionMessage,
+    getAdminSettings: getAdminSettings,
+    saveAdminSettings: saveAdminSettings,
+    addAdmin: addAdmin,
+    deleteAdmin: deleteAdmin,
+    updateAdmin: updateAdmin
 };
 

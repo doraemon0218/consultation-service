@@ -1590,6 +1590,8 @@ function switchAdminTab(tabName) {
     // タブコンテンツの表示/非表示
     document.getElementById('admin-tab-management').classList.remove('active');
     document.getElementById('admin-tab-education').classList.remove('active');
+    const settingsTab = document.getElementById('admin-tab-settings');
+    if (settingsTab) settingsTab.classList.remove('active');
     
     if (tabName === 'management') {
         document.getElementById('admin-tab-management').classList.add('active');
@@ -1598,6 +1600,9 @@ function switchAdminTab(tabName) {
         loadEducationStats();
         updateChapterSelect();
         filterAllQuestions(); // すべての質問を表示
+    } else if (tabName === 'settings') {
+        if (settingsTab) settingsTab.classList.add('active');
+        loadAdminSettings();
     }
 }
 
@@ -1819,13 +1824,18 @@ function renderAllQuestions(questions) {
             '<span class="status-badge resolved">解決済み</span>' : 
             '<span class="status-badge pending">対応中</span>';
         
+        const difficultyStars = question.difficulty ? '⭐'.repeat(question.difficulty) + '☆'.repeat(5 - question.difficulty) : '';
+        
         questionCard.innerHTML = `
             <div class="question-card-header">
                 <div class="question-card-title">
                     <span class="category-badge">${getCategoryName(question.category)}</span>
                     <h4>${question.title}</h4>
                 </div>
-                ${statusBadge}
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    ${question.difficulty ? `<span class="difficulty-badge" title="難易度: ${question.difficulty}/5">${difficultyStars}</span>` : ''}
+                    ${statusBadge}
+                </div>
             </div>
             <div class="question-card-body">
                 <p class="question-preview">${question.text.substring(0, 150)}${question.text.length > 150 ? '...' : ''}</p>
@@ -1904,6 +1914,13 @@ function showQuestionDetail(questionId) {
                         }
                     </div>
                 </div>
+                
+                <div class="detail-section">
+                    <h4>難易度評価</h4>
+                    <div class="difficulty-rating">
+                        ${generateStarRating(question.difficulty || 0, question.id)}
+                    </div>
+                </div>
             </div>
             <div class="detail-modal-footer">
                 <button onclick="closeQuestionDetail()" class="close-btn">閉じる</button>
@@ -1928,6 +1945,180 @@ function closeQuestionDetail() {
 function openChatFromAdmin(questionId) {
     closeQuestionDetail();
     showChat(questionId);
+}
+
+// 管理者設定を読み込む
+function loadAdminSettings() {
+    if (!window.demoAuth) return;
+    
+    const settings = window.demoAuth.getAdminSettings();
+    const adminList = document.getElementById('admin-list');
+    if (!adminList) return;
+    
+    adminList.innerHTML = '';
+    
+    if (settings.admins && settings.admins.length > 0) {
+        settings.admins.forEach(admin => {
+            const adminItem = document.createElement('div');
+            adminItem.className = 'admin-item';
+            
+            const notificationText = admin.notificationType === 'realtime' 
+                ? 'チャットが投稿されるたびに'
+                : `${admin.notificationInterval}分ごと`;
+            
+            adminItem.innerHTML = `
+                <div class="admin-info">
+                    <div class="admin-email">📧 ${admin.email}</div>
+                    <div class="admin-notification">🔔 ${notificationText}</div>
+                </div>
+                <div class="admin-actions">
+                    <button onclick="editAdmin('${admin.id}')" class="edit-admin-btn">編集</button>
+                    <button onclick="deleteAdminConfirm('${admin.id}')" class="delete-admin-btn">削除</button>
+                </div>
+            `;
+            
+            adminList.appendChild(adminItem);
+        });
+    } else {
+        adminList.innerHTML = '<p class="no-admins">管理者が登録されていません</p>';
+    }
+}
+
+// 新しい管理者を追加するフォームを表示
+function addNewAdmin() {
+    const form = document.getElementById('new-admin-form');
+    if (form) {
+        form.style.display = 'block';
+        document.getElementById('admin-email').value = '';
+        document.getElementById('admin-notification-type').value = 'realtime';
+        updateNotificationOptions();
+    }
+}
+
+// 通知オプションを更新
+function updateNotificationOptions() {
+    const type = document.getElementById('admin-notification-type').value;
+    const intervalGroup = document.getElementById('notification-interval-group');
+    if (intervalGroup) {
+        intervalGroup.style.display = type === 'interval' ? 'block' : 'none';
+    }
+}
+
+// 新しい管理者を保存
+function saveNewAdmin() {
+    const email = document.getElementById('admin-email').value.trim();
+    const notificationType = document.getElementById('admin-notification-type').value;
+    const notificationInterval = notificationType === 'interval' 
+        ? parseInt(document.getElementById('admin-notification-interval').value)
+        : null;
+    
+    if (!email) {
+        alert('メールアドレスを入力してください');
+        return;
+    }
+    
+    if (!window.demoAuth) {
+        alert('システムエラーが発生しました');
+        return;
+    }
+    
+    try {
+        window.demoAuth.addAdmin({
+            email: email,
+            notificationType: notificationType,
+            notificationInterval: notificationInterval
+        });
+        
+        cancelAddAdmin();
+        loadAdminSettings();
+        alert('管理者を追加しました');
+    } catch (error) {
+        console.error('管理者追加エラー:', error);
+        alert('管理者の追加に失敗しました');
+    }
+}
+
+// 管理者追加をキャンセル
+function cancelAddAdmin() {
+    const form = document.getElementById('new-admin-form');
+    if (form) {
+        form.style.display = 'none';
+    }
+}
+
+// 管理者を編集
+function editAdmin(adminId) {
+    if (!window.demoAuth) return;
+    
+    const settings = window.demoAuth.getAdminSettings();
+    const admin = settings.admins.find(a => a.id === adminId);
+    if (!admin) return;
+    
+    // 編集フォームを表示（簡易版：削除して再追加）
+    if (confirm(`管理者「${admin.email}」を編集しますか？\n（現在は削除して再追加する必要があります）`)) {
+        window.demoAuth.deleteAdmin(adminId);
+        loadAdminSettings();
+        
+        // フォームに値を設定
+        document.getElementById('admin-email').value = admin.email;
+        document.getElementById('admin-notification-type').value = admin.notificationType;
+        updateNotificationOptions();
+        if (admin.notificationInterval) {
+            document.getElementById('admin-notification-interval').value = admin.notificationInterval;
+        }
+        addNewAdmin();
+    }
+}
+
+// 管理者削除の確認
+function deleteAdminConfirm(adminId) {
+    if (!window.demoAuth) return;
+    
+    const settings = window.demoAuth.getAdminSettings();
+    const admin = settings.admins.find(a => a.id === adminId);
+    if (!admin) return;
+    
+    if (confirm(`管理者「${admin.email}」を削除しますか？`)) {
+        window.demoAuth.deleteAdmin(adminId);
+        loadAdminSettings();
+        alert('管理者を削除しました');
+    }
+}
+
+// 星評価を生成
+function generateStarRating(rating, questionId) {
+    let html = '<div class="star-rating-container">';
+    for (let i = 1; i <= 5; i++) {
+        const isActive = i <= rating;
+        html += `
+            <span class="star ${isActive ? 'active' : ''}" 
+                  onclick="setDifficultyRating(${i}, '${questionId}')" 
+                  data-rating="${i}">
+                ${isActive ? '⭐' : '☆'}
+            </span>
+        `;
+    }
+    html += ` <span class="rating-text">${rating > 0 ? `難易度: ${rating}/5` : '評価する'}</span></div>`;
+    return html;
+}
+
+// 難易度評価を設定
+function setDifficultyRating(rating, questionId) {
+    if (!window.demoAuth) return;
+    
+    const question = window.demoAuth.getQuestionById(questionId);
+    if (!question) return;
+    
+    window.demoAuth.updateQuestion(questionId, { difficulty: rating });
+    
+    // モーダル内の星評価を更新
+    const starContainer = document.querySelector(`.question-detail-modal .star-rating-container`);
+    if (starContainer) {
+        starContainer.outerHTML = generateStarRating(rating, questionId);
+    }
+    
+    // 質問一覧の表示も更新（必要に応じて）
+    filterAllQuestions();
 }
 
 // チャプター選択を更新
