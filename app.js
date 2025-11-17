@@ -35,6 +35,26 @@ function waitForFirebase() {
 
 // 初期化
 async function init() {
+    // デモモード: ローカルストレージ認証を使用
+    const useDemoMode = !window.firebaseAuth || !window.firebaseDb;
+    
+    if (useDemoMode) {
+        console.log('🎮 デモモードで動作中（ローカルストレージ認証）');
+        // 既存のログインユーザーを確認
+        const savedUser = window.demoAuth.getCurrentUser();
+        if (savedUser) {
+            currentUser = savedUser;
+            await checkAdminStatus();
+            showTopPage();
+            await loadUserSettings();
+            updateUserDisplay();
+        } else {
+            showAuth();
+        }
+        return;
+    }
+    
+    // Firebaseモード
     try {
         await waitForFirebase();
         
@@ -68,9 +88,11 @@ async function init() {
         console.error('初期化エラー:', error);
         const errorDiv = document.getElementById('auth-error');
         if (errorDiv) {
-            errorDiv.textContent = 'Firebaseの初期化に失敗しました。設定を確認してください。';
+            errorDiv.textContent = 'Firebaseの初期化に失敗しました。デモモードで動作します。';
             errorDiv.classList.add('show');
         }
+        // エラー時もデモモードで動作
+        showAuth();
     }
 }
 
@@ -202,13 +224,34 @@ async function handleSignup() {
         return;
     }
 
-    // Firebase設定の確認
-    if (!auth || !db) {
-        showError('Firebaseが正しく設定されていません。設定を確認してください。');
-        console.error('Firebase設定エラー: authまたはdbが初期化されていません');
+    // デモモードかどうかを確認
+    const useDemoMode = !auth || !db || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        // デモモード: ローカルストレージ認証
+        try {
+            clearError();
+            const userCredential = window.demoAuth.signup(email, password, username);
+            window.demoAuth.saveCurrentUser(userCredential.user);
+            currentUser = userCredential.user;
+            
+            // フォームをクリア
+            document.getElementById('signup-email').value = '';
+            document.getElementById('signup-password').value = '';
+            document.getElementById('signup-username').value = '';
+            
+            // トップページに移動
+            await checkAdminStatus();
+            showTopPage();
+            await loadUserSettings();
+            updateUserDisplay();
+        } catch (error) {
+            showError(error.message || '登録に失敗しました');
+        }
         return;
     }
 
+    // Firebaseモード
     try {
         clearError();
         const userCredential = await window.firebaseFunctions.createUserWithEmailAndPassword(auth, email, password);
@@ -267,13 +310,33 @@ async function handleLogin() {
         return;
     }
 
-    // Firebase設定の確認
-    if (!auth || !db) {
-        showError('Firebaseが正しく設定されていません。設定を確認してください。');
-        console.error('Firebase設定エラー: authまたはdbが初期化されていません');
+    // デモモードかどうかを確認
+    const useDemoMode = !auth || !db || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        // デモモード: ローカルストレージ認証
+        try {
+            clearError();
+            const userCredential = window.demoAuth.login(email, password);
+            window.demoAuth.saveCurrentUser(userCredential.user);
+            currentUser = userCredential.user;
+            
+            // フォームをクリア
+            document.getElementById('login-email').value = '';
+            document.getElementById('login-password').value = '';
+            
+            // トップページに移動
+            await checkAdminStatus();
+            showTopPage();
+            await loadUserSettings();
+            updateUserDisplay();
+        } catch (error) {
+            showError(error.message || 'ログインに失敗しました');
+        }
         return;
     }
 
+    // Firebaseモード
     try {
         clearError();
         await window.firebaseFunctions.signInWithEmailAndPassword(auth, email, password);
@@ -316,6 +379,15 @@ async function handleLogin() {
 
 // Googleログイン処理
 async function handleGoogleLogin() {
+    // デモモードではGoogleログインは使用不可
+    const useDemoMode = !auth || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        showError('デモモードではGoogleログインは使用できません。メールアドレスとパスワードでログインしてください。');
+        return;
+    }
+    
+    // Firebaseモード
     try {
         clearError();
         await window.firebaseFunctions.signInWithPopup(auth, googleProvider);
@@ -330,6 +402,18 @@ async function handleGoogleLogin() {
 
 // ログアウト処理
 async function handleLogout() {
+    // デモモードかどうかを確認
+    const useDemoMode = !auth || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        window.demoAuth.logout();
+        currentUser = null;
+        isAdmin = false;
+        showAuth();
+        return;
+    }
+    
+    // Firebaseモード
     try {
         await window.firebaseFunctions.signOut(auth);
     } catch (error) {
