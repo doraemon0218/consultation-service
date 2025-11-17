@@ -169,52 +169,79 @@ function showQuestionForm() {
 function showChat(questionId) {
     console.log('showChat called with questionId:', questionId);
     
-    // すべての画面を非表示
-    document.getElementById('auth-container').style.display = 'none';
-    document.getElementById('top-page').style.display = 'none';
-    document.getElementById('question-form').style.display = 'none';
-    document.getElementById('settings-page').style.display = 'none';
-    document.getElementById('admin-page').style.display = 'none';
-    
-    // チャット画面を表示
-    const chatContainer = document.getElementById('chat-container');
-    if (chatContainer) {
-        chatContainer.style.display = 'flex';
-    } else {
-        console.error('chat-container要素が見つかりません');
-        return;
-    }
-    
-    currentQuestionId = questionId;
-    
-    if (questionId) {
-        const question = window.demoAuth.getQuestionById(questionId);
-        console.log('Question found:', question);
+    try {
+        // すべての画面を非表示
+        const authContainer = document.getElementById('auth-container');
+        const topPage = document.getElementById('top-page');
+        const questionForm = document.getElementById('question-form');
+        const settingsPage = document.getElementById('settings-page');
+        const adminPage = document.getElementById('admin-page');
         
-        if (question) {
-            const chatTitle = document.getElementById('chat-title');
-            if (chatTitle) {
-                chatTitle.textContent = question.title;
-            }
-            
-            // 管理者に通知されている場合はステータスを表示
-            const chatStatus = document.getElementById('chat-status');
-            if (chatStatus) {
-                if (question.status === 'admin-notified' || question.status === 'pending') {
-                    chatStatus.style.display = 'block';
-                } else {
-                    chatStatus.style.display = 'none';
-                }
-            }
+        if (authContainer) authContainer.style.display = 'none';
+        if (topPage) topPage.style.display = 'none';
+        if (questionForm) questionForm.style.display = 'none';
+        if (settingsPage) settingsPage.style.display = 'none';
+        if (adminPage) adminPage.style.display = 'none';
+        
+        // チャット画面を表示
+        const chatContainer = document.getElementById('chat-container');
+        if (!chatContainer) {
+            console.error('chat-container要素が見つかりません');
+            alert('チャット画面の読み込みに失敗しました。ページを再読み込みしてください。');
+            return;
         }
         
-        // メッセージを読み込む
-        loadChatMessages(questionId);
-    } else {
-        loadMessages();
+        chatContainer.style.display = 'flex';
+        console.log('チャット画面を表示しました');
+        
+        currentQuestionId = questionId;
+        
+        if (questionId) {
+            if (!window.demoAuth) {
+                console.error('window.demoAuth is not available');
+                alert('システムエラーが発生しました。ページを再読み込みしてください。');
+                return;
+            }
+            
+            const question = window.demoAuth.getQuestionById(questionId);
+            console.log('Question found:', question);
+            
+            if (question) {
+                const chatTitle = document.getElementById('chat-title');
+                if (chatTitle) {
+                    chatTitle.textContent = question.title;
+                    console.log('チャットタイトルを設定:', question.title);
+                }
+                
+                // 管理者に通知されている場合はステータスを表示
+                const chatStatus = document.getElementById('chat-status');
+                if (chatStatus) {
+                    if (question.status === 'admin-notified' || question.status === 'pending') {
+                        chatStatus.style.display = 'block';
+                        console.log('ステータスメッセージを表示');
+                    } else {
+                        chatStatus.style.display = 'none';
+                    }
+                }
+            } else {
+                console.warn('質問が見つかりませんでした。ID:', questionId);
+            }
+            
+            // メッセージを読み込む
+            loadChatMessages(questionId);
+        } else {
+            console.log('questionIdがないため、通常のメッセージを読み込みます');
+            loadMessages();
+        }
+        
+        updateUserDisplay();
+        console.log('チャット画面の表示が完了しました');
+        
+    } catch (error) {
+        console.error('showChat error:', error);
+        console.error('エラー詳細:', error.stack);
+        alert('チャット画面の表示に失敗しました: ' + (error.message || error));
     }
-    
-    updateUserDisplay();
 }
 
 // 個人設定画面を表示
@@ -677,11 +704,27 @@ function cancelQuestionImageUpload() {
 
 // 質問を送信
 async function submitQuestion() {
-    if (!currentUser) return;
+    console.log('submitQuestion called');
+    
+    if (!currentUser) {
+        console.error('currentUser is null');
+        alert('ログインが必要です');
+        return;
+    }
 
-    const category = document.getElementById('question-category').value;
-    const title = document.getElementById('question-title').value.trim();
-    const text = document.getElementById('question-text').value.trim();
+    const categoryEl = document.getElementById('question-category');
+    const titleEl = document.getElementById('question-title');
+    const textEl = document.getElementById('question-text');
+    
+    if (!categoryEl || !titleEl || !textEl) {
+        console.error('質問フォームの要素が見つかりません');
+        alert('フォームの読み込みに失敗しました。ページを再読み込みしてください。');
+        return;
+    }
+
+    const category = categoryEl.value;
+    const title = titleEl.value.trim();
+    const text = textEl.value.trim();
 
     if (!category || !title || !text) {
         alert('すべての必須項目を入力してください');
@@ -689,18 +732,31 @@ async function submitQuestion() {
     }
 
     try {
+        console.log('質問データ:', { category, title, text: text.substring(0, 50) + '...' });
+        
         let imageUrl = null;
         
         // 画像がある場合はDataURLとして保存
         if (questionImageFile) {
+            console.log('画像を処理中...');
             const reader = new FileReader();
-            imageUrl = await new Promise((resolve) => {
+            imageUrl = await new Promise((resolve, reject) => {
                 reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = reject;
                 reader.readAsDataURL(questionImageFile);
             });
+            console.log('画像処理完了');
+        }
+
+        // demoAuthが利用可能か確認
+        if (!window.demoAuth) {
+            console.error('window.demoAuth is not available');
+            alert('システムエラーが発生しました。ページを再読み込みしてください。');
+            return;
         }
 
         // 質問を作成
+        console.log('質問を作成中...');
         const question = window.demoAuth.addQuestion({
             category: category,
             title: title,
@@ -710,25 +766,27 @@ async function submitQuestion() {
             userEmail: currentUser.email,
             displayName: currentUser.displayName || currentUser.email
         });
+        console.log('質問を作成しました:', question);
 
         // 管理者に通知（AI応答機能は省略）
         window.demoAuth.updateQuestion(question.id, {
             status: 'admin-notified',
             adminNotified: true
         });
+        console.log('質問ステータスを更新しました');
         
         // 管理者に通知（デモモードではローカルストレージに保存）
         notifyAdmin(question);
+        console.log('管理者に通知しました');
 
         // チャット画面に遷移
-        console.log('質問を作成しました。ID:', question.id);
-        setTimeout(() => {
-            showChat(question.id);
-        }, 100);
+        console.log('チャット画面に遷移します。質問ID:', question.id);
+        showChat(question.id);
         
     } catch (error) {
         console.error('質問送信エラー:', error);
-        alert('質問の送信に失敗しました: ' + error.message);
+        console.error('エラー詳細:', error.stack);
+        alert('質問の送信に失敗しました: ' + (error.message || error));
     }
 }
 
