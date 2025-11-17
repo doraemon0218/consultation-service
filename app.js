@@ -335,10 +335,25 @@ function loadConsultationHistory() {
     userQuestions.forEach((question) => {
         const historyItem = document.createElement('div');
         historyItem.className = 'history-item';
+        historyItem.onclick = () => openChatFromHistory(question.id);
+        historyItem.style.cursor = 'pointer';
         
         const statusBadge = question.status === 'resolved' ? 
             '<span class="status-badge resolved">解決済み</span>' : 
             '<span class="status-badge pending">対応中</span>';
+        
+        // メッセージ数を取得
+        const messages = window.demoAuth.getQuestionMessages(question.id);
+        const messageCount = messages.length;
+        
+        // 最終更新日時を取得（メッセージがある場合は最新メッセージの日時、ない場合は質問作成日時）
+        let lastUpdated = question.createdAt;
+        if (messages.length > 0) {
+            const lastMessage = messages[messages.length - 1];
+            if (lastMessage.timestamp) {
+                lastUpdated = lastMessage.timestamp;
+            }
+        }
         
         historyItem.innerHTML = `
             <div class="history-item-header">
@@ -347,8 +362,13 @@ function loadConsultationHistory() {
             </div>
             <div class="history-item-text">${question.text.substring(0, 100)}${question.text.length > 100 ? '...' : ''}</div>
             <div class="history-item-footer">
-                <span class="history-item-date">${formatDate(question.createdAt)}</span>
-                <button onclick="openChatFromHistory('${question.id}')" class="view-chat-btn">チャットを見る</button>
+                <div class="history-item-info">
+                    <span class="history-item-date">${formatDate(question.createdAt)}</span>
+                    ${messageCount > 0 ? `<span class="history-item-messages">💬 ${messageCount}件のメッセージ</span>` : ''}
+                </div>
+                <div class="history-item-action">
+                    <span class="view-chat-hint">クリックしてチャットを見る →</span>
+                </div>
             </div>
         `;
         

@@ -511,9 +511,37 @@ body {
     border-top: 1px solid #e0e0e0;
 }
 
+.history-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
 .history-item-date {
     color: #999;
     font-size: 12px;
+}
+
+.history-item-messages {
+    color: #667eea;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.history-item-action {
+    display: flex;
+    align-items: center;
+}
+
+.view-chat-hint {
+    color: #667eea;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.history-item:hover .view-chat-hint {
+    color: #764ba2;
 }
 
 .view-chat-btn {
