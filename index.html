@@ -3,46 +3,263 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Strawberry Farm</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-        }
-        
-        .container {
-            text-align: center;
-            padding: 2rem;
-        }
-        
-        h1 {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-        
-        p {
-            font-size: 1.2rem;
-            opacity: 0.9;
-        }
-    </style>
+    <title>Strawberry Farm Chat</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, setDoc, getDoc, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+
+        // Firebase設定（実際のプロジェクトでは環境変数から取得）
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Firebase初期化
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+        const googleProvider = new GoogleAuthProvider();
+
+        // グローバルに公開
+        window.firebaseAuth = auth;
+        window.firebaseDb = db;
+        window.firebaseStorage = storage;
+        window.googleProvider = googleProvider;
+        window.firebaseFunctions = {
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signInWithPopup,
+            onAuthStateChanged,
+            signOut,
+            collection,
+            addDoc,
+            query,
+            orderBy,
+            onSnapshot,
+            serverTimestamp,
+            doc,
+            setDoc,
+            getDoc,
+            getDocs,
+            ref,
+            uploadBytes,
+            getDownloadURL
+        };
+    </script>
 </head>
 <body>
-    <div class="container">
-        <h1>🍓 Strawberry Farm</h1>
-        <p>GitHub Pagesでホスティング中</p>
+    <!-- 認証画面 -->
+    <div id="auth-container" class="auth-container">
+        <div class="auth-box">
+            <h1>🍓 Strawberry Farm Chat</h1>
+            
+            <!-- サインアップフォーム -->
+            <div id="signup-form" class="auth-form">
+                <h2>新規登録</h2>
+                <input type="text" id="signup-email" placeholder="メールアドレス" required>
+                <input type="password" id="signup-password" placeholder="パスワード（6文字以上）" required>
+                <input type="text" id="signup-username" placeholder="ユーザー名" required>
+                <button onclick="handleSignup()">アカウント作成</button>
+                <p class="auth-link">既にアカウントをお持ちですか？ <a href="#" onclick="showLogin()">ログイン</a></p>
+            </div>
+
+            <!-- ログインフォーム -->
+            <div id="login-form" class="auth-form" style="display: none;">
+                <h2>ログイン</h2>
+                <input type="text" id="login-email" placeholder="メールアドレス" required>
+                <input type="password" id="login-password" placeholder="パスワード" required>
+                <button onclick="handleLogin()">ログイン</button>
+                <p class="auth-link">アカウントをお持ちでないですか？ <a href="#" onclick="showSignup()">新規登録</a></p>
+            </div>
+
+            <!-- Googleログインボタン -->
+            <div class="google-auth">
+                <div class="divider">
+                    <span>または</span>
+                </div>
+                <button class="google-btn" onclick="handleGoogleLogin()">
+                    <svg width="18" height="18" viewBox="0 0 18 18">
+                        <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                        <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.965-2.184l-2.908-2.258c-.806.54-1.837.86-3.057.86-2.35 0-4.34-1.587-5.053-3.72H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+                        <path fill="#FBBC05" d="M3.954 10.698c-.18-.54-.282-1.117-.282-1.698s.102-1.158.282-1.698V4.97H.957C.348 6.175 0 7.55 0 9s.348 2.825.957 4.03l2.997-2.332z"/>
+                        <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.582C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.97L3.954 7.302C4.66 5.167 6.65 3.58 9 3.58z"/>
+                    </svg>
+                    Googleでログイン
+                </button>
+            </div>
+
+            <div id="auth-error" class="error-message"></div>
+        </div>
     </div>
+
+    <!-- トップページ（機能選択画面） -->
+    <div id="top-page" class="top-page" style="display: none;">
+        <div class="top-header">
+            <h1>🍓 Strawberry Farm</h1>
+            <div class="user-info">
+                <span id="top-user-name"></span>
+                <button onclick="handleLogout()" class="logout-btn">ログアウト</button>
+            </div>
+        </div>
+        
+        <div class="top-content">
+            <h2>機能を選択してください</h2>
+            <div class="function-cards">
+                <div class="function-card" onclick="showChat()">
+                    <div class="card-icon">💬</div>
+                    <h3>チャット</h3>
+                    <p>リアルタイムでチャットを開始</p>
+                </div>
+                <div class="function-card" onclick="showSettings()">
+                    <div class="card-icon">⚙️</div>
+                    <h3>個人設定</h3>
+                    <p>アカウント設定を変更</p>
+                </div>
+                <div class="function-card" onclick="alert('この機能は今後追加予定です')">
+                    <div class="card-icon">📊</div>
+                    <h3>相談履歴</h3>
+                    <p>過去の相談内容を確認</p>
+                </div>
+                <div class="function-card" onclick="alert('この機能は今後追加予定です')">
+                    <div class="card-icon">📝</div>
+                    <h3>相談フォーム</h3>
+                    <p>新しい相談を開始</p>
+                </div>
+                <div id="admin-card" class="function-card" onclick="showAdminPage()" style="display: none;">
+                    <div class="card-icon">👨‍💼</div>
+                    <h3>管理者ページ</h3>
+                    <p>投稿の一括管理・タグ付け</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理者用ページ -->
+    <div id="admin-page" class="admin-page" style="display: none;">
+        <div class="admin-header">
+            <button onclick="showTopPage()" class="back-btn">← 戻る</button>
+            <h2>管理者ページ</h2>
+        </div>
+        
+        <div class="admin-content">
+            <!-- タグ管理セクション -->
+            <div class="admin-section">
+                <h3>タグ管理（チャプター名）</h3>
+                <div class="tag-management">
+                    <div class="tag-input-group">
+                        <input type="text" id="new-tag-input" placeholder="新しいタグ（チャプター名）を追加">
+                        <button onclick="addNewTag()" class="add-tag-btn">追加</button>
+                    </div>
+                    <div id="tags-list" class="tags-list"></div>
+                </div>
+            </div>
+
+            <!-- フィルターセクション -->
+            <div class="admin-section">
+                <h3>フィルター</h3>
+                <div class="filter-controls">
+                    <select id="tag-filter" onchange="filterMessages()">
+                        <option value="">すべてのタグ</option>
+                    </select>
+                    <input type="text" id="search-input" placeholder="テキスト検索..." onkeyup="filterMessages()">
+                    <button onclick="clearFilters()" class="clear-filter-btn">フィルター解除</button>
+                </div>
+            </div>
+
+            <!-- 投稿一覧 -->
+            <div class="admin-section">
+                <h3>投稿一覧</h3>
+                <div class="messages-controls">
+                    <button onclick="selectAllMessages()" class="control-btn">すべて選択</button>
+                    <button onclick="deselectAllMessages()" class="control-btn">選択解除</button>
+                    <button onclick="mergeSelectedMessages()" class="control-btn merge-btn">選択した質問を統合</button>
+                </div>
+                <div id="admin-messages-container" class="admin-messages-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 個人設定画面 -->
+    <div id="settings-page" class="settings-page" style="display: none;">
+        <div class="settings-header">
+            <button onclick="showTopPage()" class="back-btn">← 戻る</button>
+            <h2>個人設定</h2>
+        </div>
+        
+        <div class="settings-content">
+            <div class="settings-section">
+                <h3>基本情報</h3>
+                <div class="setting-item">
+                    <label for="setting-age">年齢</label>
+                    <input type="number" id="setting-age" min="1" max="120" placeholder="年齢を入力">
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>相談設定</h3>
+                <div class="setting-item">
+                    <label for="setting-consultations-per-day">1日の相談回数</label>
+                    <select id="setting-consultations-per-day">
+                        <option value="1">1回</option>
+                        <option value="2">2回</option>
+                        <option value="3">3回</option>
+                        <option value="4">4回</option>
+                        <option value="5">5回以上</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>通知設定</h3>
+                <div class="setting-item">
+                    <label class="toggle-label">
+                        <span>返事が来た時の自動メール通知</span>
+                        <input type="checkbox" id="setting-email-notification" class="toggle-input">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <button onclick="saveSettings()" class="save-btn">設定を保存</button>
+            <div id="settings-message" class="settings-message"></div>
+        </div>
+    </div>
+
+    <!-- チャット画面 -->
+    <div id="chat-container" class="chat-container" style="display: none;">
+        <div class="chat-header">
+            <button onclick="showTopPage()" class="back-btn">← 戻る</button>
+            <h2>🍓 Strawberry Farm Chat</h2>
+            <div class="user-info">
+                <span id="current-user"></span>
+            </div>
+        </div>
+        
+        <div id="messages-container" class="messages-container"></div>
+        
+        <div class="chat-input-container">
+            <label for="image-input" class="image-upload-btn" title="画像をアップロード">
+                📷
+            </label>
+            <input type="file" id="image-input" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
+            <input type="text" id="message-input" placeholder="メッセージを入力..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()" class="send-btn">送信</button>
+        </div>
+        <div id="image-preview" class="image-preview" style="display: none;">
+            <img id="preview-img" src="" alt="プレビュー">
+            <button onclick="cancelImageUpload()" class="cancel-image-btn">×</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
 </body>
 </html>
-
