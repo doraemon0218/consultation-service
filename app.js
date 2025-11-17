@@ -7,6 +7,8 @@ let isAdmin = false;
 let allMessages = [];
 let allTags = [];
 let filteredMessages = [];
+let currentQuestionId = null;
+let questionImageFile = null;
 
 // Firebase初期化を待つ
 function waitForFirebase() {
@@ -129,6 +131,7 @@ async function checkAdminStatus() {
 function showAuth() {
     document.getElementById('auth-container').style.display = 'flex';
     document.getElementById('top-page').style.display = 'none';
+    document.getElementById('question-form').style.display = 'none';
     document.getElementById('chat-container').style.display = 'none';
     document.getElementById('settings-page').style.display = 'none';
     document.getElementById('admin-page').style.display = 'none';
@@ -138,9 +141,11 @@ function showAuth() {
 function showTopPage() {
     document.getElementById('auth-container').style.display = 'none';
     document.getElementById('top-page').style.display = 'flex';
+    document.getElementById('question-form').style.display = 'none';
     document.getElementById('chat-container').style.display = 'none';
     document.getElementById('settings-page').style.display = 'none';
     document.getElementById('admin-page').style.display = 'none';
+    currentQuestionId = null;
     updateTopPageUserDisplay();
 }
 
@@ -158,6 +163,7 @@ function showChat() {
 function showSettings() {
     document.getElementById('auth-container').style.display = 'none';
     document.getElementById('top-page').style.display = 'none';
+    document.getElementById('question-form').style.display = 'none';
     document.getElementById('chat-container').style.display = 'none';
     document.getElementById('settings-page').style.display = 'flex';
     document.getElementById('admin-page').style.display = 'none';
@@ -173,6 +179,7 @@ function showAdminPage() {
     
     document.getElementById('auth-container').style.display = 'none';
     document.getElementById('top-page').style.display = 'none';
+    document.getElementById('question-form').style.display = 'none';
     document.getElementById('chat-container').style.display = 'none';
     document.getElementById('settings-page').style.display = 'none';
     document.getElementById('admin-page').style.display = 'flex';
@@ -581,6 +588,298 @@ async function saveSettings() {
     }
 }
 
+// 質問画像選択処理
+function handleQuestionImageSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // ファイルサイズチェック（5MB以下）
+    if (file.size > 5 * 1024 * 1024) {
+        alert('画像サイズは5MB以下にしてください');
+        return;
+    }
+
+    questionImageFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const previewImg = document.getElementById('question-preview-img');
+        const previewDiv = document.getElementById('question-image-preview');
+        previewImg.src = e.target.result;
+        previewDiv.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+}
+
+// 質問画像アップロードをキャンセル
+function cancelQuestionImageUpload() {
+    questionImageFile = null;
+    document.getElementById('question-image-input').value = '';
+    document.getElementById('question-image-preview').style.display = 'none';
+}
+
+// 質問を送信
+async function submitQuestion() {
+    if (!currentUser) return;
+
+    const category = document.getElementById('question-category').value;
+    const title = document.getElementById('question-title').value.trim();
+    const text = document.getElementById('question-text').value.trim();
+
+    if (!category || !title || !text) {
+        alert('すべての必須項目を入力してください');
+        return;
+    }
+
+    try {
+        let imageUrl = null;
+        
+        // 画像がある場合はDataURLとして保存
+        if (questionImageFile) {
+            const reader = new FileReader();
+            imageUrl = await new Promise((resolve) => {
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsDataURL(questionImageFile);
+            });
+        }
+
+        // 質問を作成
+        const question = window.demoAuth.addQuestion({
+            category: category,
+            title: title,
+            text: text,
+            imageUrl: imageUrl,
+            userId: currentUser.uid,
+            userEmail: currentUser.email,
+            displayName: currentUser.displayName || currentUser.email
+        });
+
+        // AI判定を実行
+        const aiResult = await checkAIResponse(question);
+        
+        if (aiResult.canAnswer) {
+            // AIで回答可能
+            const aiResponse = await generateAIResponse(question);
+            window.demoAuth.updateQuestion(question.id, {
+                status: 'ai-answered',
+                aiResponse: aiResponse
+            });
+            
+            // AI応答をメッセージとして追加
+            window.demoAuth.addQuestionMessage(question.id, {
+                text: aiResponse,
+                userId: 'ai',
+                userEmail: 'ai@system',
+                displayName: 'AIアシスタント',
+                isAI: true
+            });
+        } else {
+            // 管理者に通知が必要
+            window.demoAuth.updateQuestion(question.id, {
+                status: 'admin-notified',
+                adminNotified: true
+            });
+            
+            // 管理者に通知（デモモードではローカルストレージに保存）
+            notifyAdmin(question);
+        }
+
+        // チャット画面に遷移
+        showChat(question.id);
+        
+    } catch (error) {
+        console.error('質問送信エラー:', error);
+        alert('質問の送信に失敗しました');
+    }
+}
+
+// AI判定（簡単な質問かどうか）
+async function checkAIResponse(question) {
+    // デモ用の簡単な判定ロジック
+    // 実際の実装では、より高度なAI判定を使用
+    
+    const simpleKeywords = [
+        '温度', '水やり', '肥料', '植え付け', '収穫時期',
+        'いつ', 'どのくらい', '何度', '何回', '何日'
+    ];
+    
+    const complexKeywords = [
+        '病気', '枯れる', '変色', '異常', '問題',
+        'どうすれば', 'なぜ', '原因', '対処'
+    ];
+    
+    const text = question.text.toLowerCase();
+    const hasSimpleKeywords = simpleKeywords.some(keyword => text.includes(keyword));
+    const hasComplexKeywords = complexKeywords.some(keyword => text.includes(keyword));
+    
+    // 複雑なキーワードがある場合は管理者に通知
+    if (hasComplexKeywords) {
+        return { canAnswer: false, reason: 'complex' };
+    }
+    
+    // 簡単なキーワードのみの場合はAI回答可能
+    if (hasSimpleKeywords && !hasComplexKeywords) {
+        return { canAnswer: true, reason: 'simple' };
+    }
+    
+    // デフォルトは管理者に通知
+    return { canAnswer: false, reason: 'default' };
+}
+
+// AI応答を生成
+async function generateAIResponse(question) {
+    // デモ用の簡単なAI応答
+    // 実際の実装では、OpenAI APIや他のAIサービスを使用
+    
+    const categoryResponses = {
+        'soil-preparation': 'いちごの土づくりは、排水性と保水性のバランスが重要です。pHは5.5～6.5が適切です。',
+        'planting': '植え付けは9月～10月が適期です。株間は30cm程度、深植えにならないよう注意してください。',
+        'watering': '水やりは土の表面が乾いたら行います。過湿にならないよう注意が必要です。',
+        'fertilization': '元肥は植え付け時に、追肥は開花前と収穫中に行います。',
+        'temperature': '生育適温は18～25℃です。夜温は10℃以上を保つと良いでしょう。',
+        'lighting': '日当たりの良い場所で育てます。1日6時間以上の日照が理想です。',
+        'pollination': '受粉は自然受粉または人工受粉で行います。ハチや風で受粉します。',
+        'pruning': 'ランナーや古い葉は適宜剪定します。実がついたら余分な花は摘み取ります。',
+        'pest-control': 'アブラムシやハダニに注意。早期発見と適切な薬剤散布が重要です。',
+        'harvesting': '収穫は実が赤く熟したら行います。ヘタの部分まで赤くなったら収穫適期です。',
+        'post-harvest': '収穫後は冷暗所で保管。早めに食べるか、冷凍保存も可能です。',
+        'variety-selection': '品種選びは栽培環境と用途に合わせて選びます。',
+        'facility-management': 'ハウス栽培では換気と温度管理が重要です。',
+        'other': 'ご質問ありがとうございます。詳細な情報が必要な場合は、管理者にお問い合わせください。'
+    };
+    
+    const baseResponse = categoryResponses[question.category] || 'ご質問ありがとうございます。';
+    
+    return `${baseResponse}\n\n※ この回答はAIによる一般的な情報です。具体的な状況については、管理者にご相談ください。`;
+}
+
+// 管理者に通知
+function notifyAdmin(question) {
+    // デモモードでは、管理者通知をローカルストレージに保存
+    // 実際の実装では、管理者にメール通知やプッシュ通知を送信
+    const notifications = JSON.parse(localStorage.getItem('admin_notifications') || '[]');
+    notifications.push({
+        questionId: question.id,
+        title: question.title,
+        category: question.category,
+        userId: question.userId,
+        createdAt: new Date(),
+        read: false
+    });
+    localStorage.setItem('admin_notifications', JSON.stringify(notifications));
+}
+
+// チャットメッセージを読み込む（質問用）
+function loadChatMessages(questionId) {
+    if (!questionId) return;
+    
+    const useDemoMode = !auth || !db || !window.firebaseAuth;
+    
+    if (useDemoMode) {
+        const messages = window.demoAuth.getQuestionMessages(questionId);
+        const question = window.demoAuth.getQuestionById(questionId);
+        const messagesContainer = document.getElementById('messages-container');
+        if (!messagesContainer) return;
+        
+        messagesContainer.innerHTML = '';
+        
+        // 質問を最初のメッセージとして表示
+        if (question) {
+            const questionDiv = document.createElement('div');
+            questionDiv.className = 'message own';
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'question-title';
+            titleDiv.textContent = `【${getCategoryName(question.category)}】${question.title}`;
+            bubble.appendChild(titleDiv);
+            
+            if (question.imageUrl) {
+                const img = document.createElement('img');
+                img.src = question.imageUrl;
+                img.className = 'message-image';
+                img.alt = '質問画像';
+                bubble.appendChild(img);
+            }
+            
+            const textDiv = document.createElement('div');
+            textDiv.className = 'message-text';
+            textDiv.textContent = question.text;
+            bubble.appendChild(textDiv);
+            
+            questionDiv.appendChild(bubble);
+            messagesContainer.appendChild(questionDiv);
+        }
+        
+        // メッセージを表示
+        messages.forEach((message) => {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${message.userId === currentUser.uid ? 'own' : 'other'}`;
+
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            
+            if (message.isAI) {
+                bubble.style.background = '#e8f5e9';
+                bubble.style.borderLeft = '4px solid #4caf50';
+            }
+            
+            if (message.imageUrl) {
+                const img = document.createElement('img');
+                img.src = message.imageUrl;
+                img.className = 'message-image';
+                img.alt = '画像';
+                bubble.appendChild(img);
+            }
+            
+            if (message.text) {
+                const textDiv = document.createElement('div');
+                textDiv.className = 'message-text';
+                textDiv.textContent = message.text;
+                bubble.appendChild(textDiv);
+            }
+
+            const info = document.createElement('div');
+            info.className = 'message-info';
+            
+            if (message.userId !== currentUser.uid) {
+                const username = document.createElement('div');
+                username.className = 'message-username';
+                username.textContent = message.displayName || message.userEmail;
+                messageDiv.appendChild(username);
+            }
+
+            messageDiv.appendChild(bubble);
+            messageDiv.appendChild(info);
+            messagesContainer.appendChild(messageDiv);
+        });
+
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+}
+
+// カテゴリ名を取得
+function getCategoryName(categoryValue) {
+    const categories = {
+        'soil-preparation': '土づくり・準備',
+        'planting': '植え付け',
+        'watering': '水やり',
+        'fertilization': '施肥・肥料',
+        'temperature': '温度管理',
+        'lighting': '光管理',
+        'pollination': '受粉',
+        'pruning': '剪定・整枝',
+        'pest-control': '病害虫対策',
+        'harvesting': '収穫',
+        'post-harvest': '収穫後処理',
+        'variety-selection': '品種選び',
+        'facility-management': '施設管理',
+        'other': 'その他'
+    };
+    return categories[categoryValue] || 'その他';
+}
+
 // 画像選択処理
 function handleImageSelect(event) {
     const file = event.target.files[0];
@@ -636,21 +935,39 @@ async function sendMessage() {
                 });
             }
 
-            // メッセージを保存
-            window.demoAuth.addMessage({
-                text: messageText || '',
-                imageUrl: imageUrl || null,
-                userId: currentUser.uid,
-                userEmail: currentUser.email,
-                displayName: currentUser.displayName || currentUser.email
-            });
+            // 質問がある場合は質問のメッセージとして保存
+            if (currentQuestionId) {
+                window.demoAuth.addQuestionMessage(currentQuestionId, {
+                    text: messageText || '',
+                    imageUrl: imageUrl || null,
+                    userId: currentUser.uid,
+                    userEmail: currentUser.email,
+                    displayName: currentUser.displayName || currentUser.email
+                });
+                
+                // フォームをクリア
+                messageInput.value = '';
+                cancelImageUpload();
+                
+                // メッセージを再読み込み
+                loadChatMessages(currentQuestionId);
+            } else {
+                // 通常のメッセージを保存
+                window.demoAuth.addMessage({
+                    text: messageText || '',
+                    imageUrl: imageUrl || null,
+                    userId: currentUser.uid,
+                    userEmail: currentUser.email,
+                    displayName: currentUser.displayName || currentUser.email
+                });
 
-            // フォームをクリア
-            messageInput.value = '';
-            cancelImageUpload();
-            
-            // メッセージを再読み込み
-            loadMessages();
+                // フォームをクリア
+                messageInput.value = '';
+                cancelImageUpload();
+                
+                // メッセージを再読み込み
+                loadMessages();
+            }
         } catch (error) {
             console.error('メッセージ送信エラー:', error);
             alert('メッセージの送信に失敗しました');

@@ -7,6 +7,8 @@ const DEMO_CURRENT_USER_KEY = 'demo_current_user';
 const DEMO_MESSAGES_KEY = 'demo_messages';
 const DEMO_TAGS_KEY = 'demo_tags';
 const DEMO_USER_SETTINGS_KEY = 'demo_user_settings';
+const DEMO_QUESTIONS_KEY = 'demo_questions';
+const DEMO_QUESTION_MESSAGES_KEY = 'demo_question_messages';
 
 // ユーザーを取得
 function getUsers() {
@@ -153,6 +155,79 @@ function saveUserSettings(userId, settings) {
     localStorage.setItem(DEMO_USER_SETTINGS_KEY, JSON.stringify(allSettings));
 }
 
+// 質問を取得
+function getQuestions() {
+    const questionsJson = localStorage.getItem(DEMO_QUESTIONS_KEY);
+    return questionsJson ? JSON.parse(questionsJson) : [];
+}
+
+// 質問を保存
+function saveQuestions(questions) {
+    localStorage.setItem(DEMO_QUESTIONS_KEY, JSON.stringify(questions));
+}
+
+// 質問を追加
+function addQuestion(question) {
+    const questions = getQuestions();
+    const newQuestion = {
+        id: 'question_' + Date.now(),
+        ...question,
+        createdAt: new Date(),
+        status: 'pending', // pending, ai-answered, admin-notified, answered
+        aiResponse: null,
+        adminNotified: false
+    };
+    questions.push(newQuestion);
+    saveQuestions(questions);
+    return newQuestion;
+}
+
+// 質問を取得（IDで）
+function getQuestionById(questionId) {
+    const questions = getQuestions();
+    return questions.find(q => q.id === questionId);
+}
+
+// 質問を更新
+function updateQuestion(questionId, updates) {
+    const questions = getQuestions();
+    const index = questions.findIndex(q => q.id === questionId);
+    if (index !== -1) {
+        questions[index] = { ...questions[index], ...updates };
+        saveQuestions(questions);
+        return questions[index];
+    }
+    return null;
+}
+
+// 質問のメッセージを取得
+function getQuestionMessages(questionId) {
+    const messagesJson = localStorage.getItem(DEMO_QUESTION_MESSAGES_KEY);
+    const allMessages = messagesJson ? JSON.parse(messagesJson) : {};
+    return allMessages[questionId] || [];
+}
+
+// 質問のメッセージを保存
+function saveQuestionMessages(questionId, messages) {
+    const messagesJson = localStorage.getItem(DEMO_QUESTION_MESSAGES_KEY);
+    const allMessages = messagesJson ? JSON.parse(messagesJson) : {};
+    allMessages[questionId] = messages;
+    localStorage.setItem(DEMO_QUESTION_MESSAGES_KEY, JSON.stringify(allMessages));
+}
+
+// 質問にメッセージを追加
+function addQuestionMessage(questionId, message) {
+    const messages = getQuestionMessages(questionId);
+    const newMessage = {
+        id: 'msg_' + Date.now(),
+        ...message,
+        timestamp: new Date()
+    };
+    messages.push(newMessage);
+    saveQuestionMessages(questionId, messages);
+    return newMessage;
+}
+
 // グローバルに公開
 window.demoAuth = {
     signup: demoSignup,
@@ -167,6 +242,12 @@ window.demoAuth = {
     addTag: addTag,
     deleteTag: deleteTag,
     getUserSettings: getUserSettings,
-    saveUserSettings: saveUserSettings
+    saveUserSettings: saveUserSettings,
+    getQuestions: getQuestions,
+    addQuestion: addQuestion,
+    getQuestionById: getQuestionById,
+    updateQuestion: updateQuestion,
+    getQuestionMessages: getQuestionMessages,
+    addQuestionMessage: addQuestionMessage
 };
 

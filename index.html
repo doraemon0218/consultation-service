@@ -128,10 +128,10 @@
         <div class="top-content">
             <h2>機能を選択してください</h2>
             <div class="function-cards">
-                <div class="function-card" onclick="showChat()">
+                <div class="function-card" onclick="showQuestionForm()">
                     <div class="card-icon">💬</div>
                     <h3>チャット</h3>
-                    <p>リアルタイムでチャットを開始</p>
+                    <p>新しい質問を作成</p>
                 </div>
                 <div class="function-card" onclick="showSettings()">
                     <div class="card-icon">⚙️</div>
@@ -248,13 +248,78 @@
         </div>
     </div>
 
+    <!-- 質問フォーム画面 -->
+    <div id="question-form" class="question-form" style="display: none;">
+        <div class="question-header">
+            <button onclick="showTopPage()" class="back-btn">← 戻る</button>
+            <h2>🍓 新しい質問を作成</h2>
+        </div>
+        
+        <div class="question-content">
+            <div class="form-section">
+                <label for="question-category">質問カテゴリ（いちご栽培のステップ）</label>
+                <select id="question-category" required>
+                    <option value="">選択してください</option>
+                    <option value="soil-preparation">土づくり・準備</option>
+                    <option value="planting">植え付け</option>
+                    <option value="watering">水やり</option>
+                    <option value="fertilization">施肥・肥料</option>
+                    <option value="temperature">温度管理</option>
+                    <option value="lighting">光管理</option>
+                    <option value="pollination">受粉</option>
+                    <option value="pruning">剪定・整枝</option>
+                    <option value="pest-control">病害虫対策</option>
+                    <option value="harvesting">収穫</option>
+                    <option value="post-harvest">収穫後処理</option>
+                    <option value="variety-selection">品種選び</option>
+                    <option value="facility-management">施設管理</option>
+                    <option value="other">その他</option>
+                </select>
+            </div>
+
+            <div class="form-section">
+                <label for="question-title">タイトル</label>
+                <input type="text" id="question-title" placeholder="質問のタイトルを入力してください" required>
+            </div>
+
+            <div class="form-section">
+                <label for="question-text">質問文</label>
+                <textarea id="question-text" rows="6" placeholder="詳しく質問内容を入力してください" required></textarea>
+            </div>
+
+            <div class="form-section">
+                <label>画像（任意）</label>
+                <div class="image-upload-area">
+                    <label for="question-image-input" class="image-upload-label">
+                        <span class="upload-icon">📷</span>
+                        <span>画像を選択</span>
+                    </label>
+                    <input type="file" id="question-image-input" accept="image/*" style="display: none;" onchange="handleQuestionImageSelect(event)">
+                    <div id="question-image-preview" class="question-image-preview" style="display: none;">
+                        <img id="question-preview-img" src="" alt="プレビュー">
+                        <button onclick="cancelQuestionImageUpload()" class="cancel-image-btn">×</button>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="submitQuestion()" class="submit-question-btn">質問を送信</button>
+        </div>
+    </div>
+
     <!-- チャット画面 -->
     <div id="chat-container" class="chat-container" style="display: none;">
         <div class="chat-header">
             <button onclick="showTopPage()" class="back-btn">← 戻る</button>
-            <h2>🍓 Strawberry Farm Chat</h2>
+            <h2 id="chat-title">🍓 Strawberry Farm Chat</h2>
             <div class="user-info">
                 <span id="current-user"></span>
+            </div>
+        </div>
+        
+        <div id="chat-status" class="chat-status" style="display: none;">
+            <div class="status-message">
+                <span class="status-icon">⏳</span>
+                <span>問い合わせていますので、お時間をください</span>
             </div>
         </div>
         
